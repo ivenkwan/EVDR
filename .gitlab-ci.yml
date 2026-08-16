@@ -167,6 +167,7 @@ build:hello-service:
     - /kaniko/executor
       --context "$CI_PROJECT_DIR/samples/hello-service"
       --dockerfile "$CI_PROJECT_DIR/samples/hello-service/Dockerfile"
+      --build-arg VERSION="$CI_COMMIT_SHORT_SHA"
       --destination "$SAMPLE_IMAGE:$IMAGE_TAG"
       --destination "$SAMPLE_IMAGE:latest"
       --label org.opencontainers.image.revision="$CI_COMMIT_SHA"
@@ -284,15 +285,21 @@ dast:zap-baseline:
     entrypoint: [""]
   needs: ["deploy:sample-staging"]
   variables:
-    DAST_TARGET_URL: "https://hello.staging.evdr.internal"
+    # /version is the service's public surface; the root path is 404 by design
+    # (only /healthz /readyz /version exist), which the spider flags as error.
+    DAST_TARGET_URL: "https://hello.staging.evdr.internal/version"
   script:
     # Baseline scan: passive + light active checks; ci/zap/rules.tsv sets
     # per-rule thresholds. Fails on WARN or above by default (-I off = fail
     # on WARN). Report is retained as evidence.
+    # ZAP_RC capture: zap-baseline exits non-zero on WARN; the runner aborts
+    # the script on any failing command, so without capture the report copy
+    # below would never run and the evidence artifact would be lost.
     - mkdir -p /zap/wrk
     - cp ci/zap/rules.tsv /zap/wrk/rules.tsv
-    - zap-baseline.py -t "$DAST_TARGET_URL" -c rules.tsv -r zap-report.html -w zap-report.md
+    - zap-baseline.py -t "$DAST_TARGET_URL" -c rules.tsv -r zap-report.html -w zap-report.md || ZAP_RC=$?
     - cp /zap/wrk/zap-report.html /zap/wrk/zap-report.md "$CI_PROJECT_DIR/" || true
+    - exit "${ZAP_RC:-0}"
   artifacts:
     when: always
     paths: [zap-report.html, zap-report.md]
