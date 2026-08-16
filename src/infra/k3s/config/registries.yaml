@@ -1,0 +1,34 @@
+# k3d node registry trust — LAB ONLY.
+#
+# The lab GitLab container registry (gitlab.evdr.internal:5050) serves a cert
+# issued by the lab's internal PKI (EVDR Internal Issuing CA, rooted in the
+# Vault PKI root). k3d node containerd does NOT trust that CA by default, so
+# image pulls fail with:
+#   tls: failed to verify certificate: x509: certificate signed by unknown authority
+#
+# k3d reads this file into every node's /etc/rancher/k3s/registries.yaml at
+# cluster create via:
+#   --volume <repo>/src/infra/k3s/config/registries.yaml:/etc/rancher/k3s/registries.yaml@server:*
+# The CA file itself is distributed to the nodes by the same mount mechanism:
+#   --volume <lab-secrets>/evdr-root-ca.pem:/etc/ssl/certs/evdr-root-ca.pem@server:*
+#
+# The CA is RE-CREATED on every Vault rebuild (new PKI root), so after a
+# cluster rebuild the CA file on the nodes must be refreshed from the CURRENT
+# Vault pki/ca_chain before pods can pull again — see
+# docs/lab/windows-docker-desktop.md §0 and the rebuild drill notes.
+#
+# Production note: Tier 0+ registries present certificates from the
+# environment's own internal CA which is baked into the node image trust
+# store at image-build time; no per-cluster registries.yaml TLS override is
+# needed there. This file exists because the lab registry is a plain Docker
+# container outside the cluster's CA lifecycle.
+
+mirrors:
+  gitlab.evdr.internal:5050:
+    endpoint:
+      - "https://gitlab.evdr.internal:5050"
+
+configs:
+  "gitlab.evdr.internal:5050":
+    tls:
+      ca_file: "/etc/ssl/certs/evdr-root-ca.pem"

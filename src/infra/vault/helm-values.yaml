@@ -24,6 +24,12 @@ server:
       name: vault-tls # cert-manager Certificate in the vault namespace
   extraEnvironmentVars:
     VAULT_ADDR: "https://vault.vault.svc:8200"
+    # In-pod CLI + raft peer verification need the issuing CA. With a
+    # user-supplied TLS secret the chart cannot auto-inject it, and the
+    # vault-tls secret already carries ca.crt (cert-manager) at this path.
+    # Without this, `vault operator raft join` fails with x509 unknown
+    # authority between peers.
+    VAULT_CACERT: "/vault/userconfig/vault-tls/ca.crt"
 
   dataStorage:
     enabled: true
@@ -57,6 +63,28 @@ server:
 
         storage "raft" {
           path = "/vault/data"
+
+          # The chart's default retry_join template renders leader_ca_cert_file
+          # ONLY when it provisions TLS itself (server.tls.secret is empty). We
+          # supply the serving cert via cert-manager (vault-tls), so the raft
+          # join client otherwise has no CA and peer verification fails with
+          # x509 unknown authority. VAULT_CACERT covers the CLI, NOT the raft
+          # join transport — the CA must be named in the stanza.
+          retry_join {
+            leader_api_addr       = "https://vault-0.vault-internal:8200"
+            leader_ca_cert_file   = "/vault/userconfig/vault-tls/ca.crt"
+            leader_tls_servername = "vault-0.vault-internal"
+          }
+          retry_join {
+            leader_api_addr       = "https://vault-1.vault-internal:8200"
+            leader_ca_cert_file   = "/vault/userconfig/vault-tls/ca.crt"
+            leader_tls_servername = "vault-1.vault-internal"
+          }
+          retry_join {
+            leader_api_addr       = "https://vault-2.vault-internal:8200"
+            leader_ca_cert_file   = "/vault/userconfig/vault-tls/ca.crt"
+            leader_tls_servername = "vault-2.vault-internal"
+          }
         }
 
         service_registration "kubernetes" {}
