@@ -66,7 +66,7 @@
 ### Exit Criteria
 
 - [ ] Threat model reviewed and signed off by security; scheduled for per-phase update (SR-4.3)
-- [ ] IaC baseline reproducible — full tear-down/rebuild of K3s + Vault + Traefik from code via documented runbook (drill pending; initial build executed on k3d lab after WSL2/libvirt instability — see docs/ADR/0002)
+- [x] IaC baseline reproducible — full tear-down/rebuild of K3s + Vault + Traefik from code via documented runbook — §9 drill PASSED 2026-08-16, 52min wall-clock on k3d lab; two repo gaps (Vault raft retry_join CA, k3d registry trust) found and fixed in-repo; drill record + timing in lab evidence dir
 - [x] CI/CD pipeline green against a sample service with SAST, DAST, dependency scan, and SBOM stages all reporting — pipeline 8 (commit 4b24dddd) fully green incl. manual deploy + DAST; evidence per runbook §8
 - [x] Room SPI contract v0.1 frozen for Phase 1 implementation — `ContractVersion = "0.1.0"` in `src/spi/interface.go`; change policy in `src/spi/README.md`
 - [x] DRM strategy decision recorded as ADR — `docs/ADR/0001-drm-strategy-view-first.md`
