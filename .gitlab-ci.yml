@@ -29,7 +29,7 @@ variables:
   GO_IMAGE: "golang:1.25-bookworm"
   TRIVY_IMAGE: "aquasec/trivy:0.58.2"
   SEMGREP_IMAGE: "semgrep/semgrep:1.99.0"
-  SYFT_IMAGE: "anchore/syft:v1.18.1"
+  SYFT_IMAGE: "anchore/syft:v1.18.1-debug" # -debug: the plain image has no shell; the runner needs sh
   ZAP_IMAGE: "ghcr.io/zaproxy/zaproxy:stable"
   TF_IMAGE: "hashicorp/terraform:1.10"
 
@@ -187,7 +187,10 @@ scan:trivy-image:
   script:
     # SR-4.4: CRITICAL image findings fail the pipeline (patch SLA in
     # docs/security/vulnerability-management.md). HIGH is reported non-blocking
-    # until Phase 1 hardening review.
+    # until Phase 1 hardening review. Registry auth via GitLab's predefined
+    # CI_REGISTRY_* variables (self-hosted registry is private).
+    - export TRIVY_USERNAME="$CI_REGISTRY_USER"
+    - export TRIVY_PASSWORD="$CI_REGISTRY_PASSWORD"
     - trivy image --scanners vuln --severity CRITICAL --exit-code 1 --format json -o trivy-image.json "$SAMPLE_IMAGE:$IMAGE_TAG"
     - trivy image --scanners vuln --severity HIGH --exit-code 0 "$SAMPLE_IMAGE:$IMAGE_TAG"
   artifacts:
@@ -207,6 +210,8 @@ scan:scheduled-image-rescan:
     name: $TRIVY_IMAGE
     entrypoint: [""]
   script:
+    - export TRIVY_USERNAME="$CI_REGISTRY_USER"
+    - export TRIVY_PASSWORD="$CI_REGISTRY_PASSWORD"
     - trivy image --scanners vuln --severity HIGH,CRITICAL --format json -o trivy-rescan.json "$SAMPLE_IMAGE:latest"
     # Alert routing: the runner ships job logs to the alerting channel
     # (docs/security/vulnerability-management.md §alerting).
@@ -226,6 +231,9 @@ sbom:syft:
     entrypoint: [""]
   needs: ["build:hello-service"]
   script:
+    # Registry auth via GitLab's predefined CI_REGISTRY_* variables.
+    - export SYFT_REGISTRY_AUTH_USERNAME="$CI_REGISTRY_USER"
+    - export SYFT_REGISTRY_AUTH_PASSWORD="$CI_REGISTRY_PASSWORD"
     - syft "$SAMPLE_IMAGE:$IMAGE_TAG" -o cyclonedx-json=sbom-image.cdx.json
     - syft "$SAMPLE_IMAGE:$IMAGE_TAG" -o spdx-json=sbom-image.spdx.json
   artifacts:
