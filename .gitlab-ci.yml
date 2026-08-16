@@ -47,8 +47,11 @@ workflow:
 
 lint:yaml:
   stage: validate
-  image: cytopia/yamllint:1.35
+  # cytopia/yamllint is no longer published on Docker Hub; run pinned yamllint
+  # on the official python base instead.
+  image: python:3.13-alpine
   script:
+    - pip install --no-cache-dir "yamllint==1.35.1" >/dev/null
     - yamllint -d relaxed src/infra ci samples .gitlab-ci.yml
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
@@ -69,7 +72,12 @@ lint:go-fmt-vet:
 
 lint:terraform:
   stage: validate
-  image: $TF_IMAGE
+  image:
+    name: $TF_IMAGE
+    # Images whose ENTRYPOINT is the tool itself (terraform, trivy, syft,
+    # kubectl, zap) must reset it, else the runner's shell script is passed
+    # to the tool as argv ("Terraform has no command named sh").
+    entrypoint: [""]
   script:
     - terraform fmt -check -recursive src/infra/terraform
     - |
@@ -107,7 +115,9 @@ sast:semgrep:
 
 deps:trivy-fs:
   stage: deps
-  image: $TRIVY_IMAGE
+  image:
+    name: $TRIVY_IMAGE
+    entrypoint: [""] # see lint:terraform
   script:
     # Dependency scanning: vulnerable packages from lockfiles/manifests.
     - trivy fs --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --format json -o trivy-deps.json .
@@ -170,7 +180,9 @@ build:hello-service:
 
 scan:trivy-image:
   stage: scan
-  image: $TRIVY_IMAGE
+  image:
+    name: $TRIVY_IMAGE
+    entrypoint: [""]
   needs: ["build:hello-service"]
   script:
     # SR-4.4: CRITICAL image findings fail the pipeline (patch SLA in
@@ -191,7 +203,9 @@ scan:trivy-image:
 # the build (base-image alerting, SR-4.4). Runs only on pipeline schedules.
 scan:scheduled-image-rescan:
   stage: scan
-  image: $TRIVY_IMAGE
+  image:
+    name: $TRIVY_IMAGE
+    entrypoint: [""]
   script:
     - trivy image --scanners vuln --severity HIGH,CRITICAL --format json -o trivy-rescan.json "$SAMPLE_IMAGE:latest"
     # Alert routing: the runner ships job logs to the alerting channel
@@ -207,7 +221,9 @@ scan:scheduled-image-rescan:
 
 sbom:syft:
   stage: sbom
-  image: $SYFT_IMAGE
+  image:
+    name: $SYFT_IMAGE
+    entrypoint: [""]
   needs: ["build:hello-service"]
   script:
     - syft "$SAMPLE_IMAGE:$IMAGE_TAG" -o cyclonedx-json=sbom-image.cdx.json
@@ -225,7 +241,9 @@ sbom:syft:
 
 deploy:sample-staging:
   stage: staging
-  image: bitnami/kubectl:1.32
+  image:
+    name: bitnami/kubectl:1.32
+    entrypoint: [""]
   needs: ["scan:trivy-image", "sbom:syft"]
   environment:
     name: staging/hello-service
@@ -247,7 +265,9 @@ deploy:sample-staging:
 
 dast:zap-baseline:
   stage: dast
-  image: $ZAP_IMAGE
+  image:
+    name: $ZAP_IMAGE
+    entrypoint: [""]
   needs: ["deploy:sample-staging"]
   variables:
     DAST_TARGET_URL: "https://hello.staging.evdr.internal"
