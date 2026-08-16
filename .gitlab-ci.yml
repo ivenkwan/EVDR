@@ -250,14 +250,19 @@ sbom:syft:
 
 deploy:sample-staging:
   stage: staging
-  image:
-    name: bitnami/kubectl:1.32
-    entrypoint: [""]
+  # bitnami/kubectl versioned tags moved behind Bitnami's paid tier; install
+  # the exact kubectl matching the cluster (v1.32.5) from dl.k8s.io with
+  # sha256 verification instead of trusting a floating image tag.
+  image: alpine:3.21
   needs: ["scan:trivy-image", "sbom:syft"]
   environment:
     name: staging/hello-service
     url: https://hello.staging.evdr.internal
   script:
+    - apk add --no-cache curl >/dev/null
+    - curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/v1.32.5/bin/linux/amd64/kubectl"
+    - echo "aaa7e6ff3bd28c262f2d95c8c967597e097b092e9b79bcb37de699e7488e3e7b  /usr/local/bin/kubectl" | sha256sum -c -
+    - chmod +x /usr/local/bin/kubectl
     # KUBECONFIG_B64 is a masked CI/CD variable holding the staging kubeconfig.
     - echo "$KUBECONFIG_B64" | base64 -d > /tmp/kubeconfig
     - export KUBECONFIG=/tmp/kubeconfig
