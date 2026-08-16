@@ -98,7 +98,11 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		// Responses carry tenant data in production services; the platform
 		// default is never to let intermediaries or browsers store them.
-		w.Header().Set("Cache-Control", "no-store")
+		// The full directive set keeps ZAP 10015 (re-examine cache-control)
+		// satisfied.
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		// JSON API responses are never cross-origin embeddable resources.
+		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
 		next.ServeHTTP(w, r)
 	})
 }

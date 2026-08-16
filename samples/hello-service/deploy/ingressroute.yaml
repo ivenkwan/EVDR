@@ -1,6 +1,9 @@
 # Edge exposure for the DAST target. Middlewares are defined in-namespace
 # (Traefik runs with allowCrossNamespace: false — see src/infra/traefik).
 ---
+# In-namespace copy of traefik/edge-security-headers (allowCrossNamespace:
+# false). Must mirror the edge policy field-for-field — the first version of
+# this copy dropped stsSeconds and the ZAP baseline caught the missing HSTS.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -11,6 +14,10 @@ spec:
     frameDeny: true
     contentTypeNosniff: true
     referrerPolicy: "strict-origin-when-cross-origin"
+    stsSeconds: 15552000
+    stsIncludeSubdomains: true
+    customResponseHeaders:
+      X-Robots-Tag: "noindex, nofollow"
 ---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
@@ -32,7 +39,11 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`hello.staging.evdr.internal`)
+    # PathPrefix(`/`): every path on this host reaches the service, so even
+    # 404s (Go mux NotFound) pass through the header middlewares — scanner
+    # probes like /robots.txt then carry the same security headers as real
+    # endpoints instead of Traefik's bare default 404.
+    - match: Host(`hello.staging.evdr.internal`) && PathPrefix(`/`)
       kind: Rule
       middlewares:
         - name: hello-security-headers

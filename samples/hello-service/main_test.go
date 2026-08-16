@@ -37,6 +37,8 @@ func TestSecurityHeadersPresent(t *testing.T) {
 		"X-Frame-Options",
 		"Content-Security-Policy",
 		"Referrer-Policy",
+		"Cache-Control",
+		"Cross-Origin-Resource-Policy",
 	} {
 		if rec.Header().Get(header) == "" {
 			t.Errorf("expected header %q to be set", header)

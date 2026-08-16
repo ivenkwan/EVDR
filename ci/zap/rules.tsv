@@ -8,6 +8,7 @@
 10016	INFO	Web Browser XSS Protection Not Enabled (legacy header)
 10063	INFO	Permissions Policy Header Not Set
 10015	WARN	Re-examine Cache-control Directives
+10049	INFO	Non-Storable Content — fires BECAUSE we set no-store; that is the deliberate platform default, not a finding
 10027	INFO	Information Disclosure - Suspicious Comments
 10098	INFO	Cross-Domain Misconfiguration
 10104	INFO	User Agent Fuzzer
