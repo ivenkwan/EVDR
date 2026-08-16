@@ -20,6 +20,11 @@ spec:
         app.kubernetes.io/name: hello-service
     spec:
       automountServiceAccountToken: false
+      # The registry is private (no anonymous pull); pull credentials live in
+      # the gitlab-registry-pull secret, created out-of-band per runbook §8
+      # (GitLab deploy token with read_registry — never committed here).
+      imagePullSecrets:
+        - name: gitlab-registry-pull
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532

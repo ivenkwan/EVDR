@@ -129,6 +129,20 @@ kubectl apply -f src/infra/traefik/crds/
 
 Follow `docs/runbooks/gitlab-runner.md`, then push a branch and confirm the pipeline goes green through `sbom`; run `deploy:sample-staging` and `dast:zap-baseline` manually.
 
+The container registry is private (anonymous pull is denied), so the staging namespace needs pull credentials before the first `deploy:sample-staging` run. Use a GitLab **deploy token** (`read_registry` scope) — not a personal token — and pass its value via the environment, never into files:
+
+```bash
+# Token value from: GitLab project → Settings → Repository → Deploy tokens
+read -rs REGISTRY_PULL_TOKEN   # paste, no echo
+kubectl -n evdr-system create secret docker-registry gitlab-registry-pull \
+  --docker-server=gitlab.evdr.internal:5050 \
+  --docker-username=k3s-pull \
+  --docker-password="$REGISTRY_PULL_TOKEN"
+unset REGISTRY_PULL_TOKEN
+```
+
+The deployment manifest references this secret by name (`imagePullSecrets`); only the name is committed.
+
 **Verify (exit-criterion evidence):** green pipeline URL + artifacts: `semgrep.sarif`, `trivy-deps.json`, `sbom-fs.cdx.json`, `trivy-image.json`, `sbom-image.*.json`, `zap-report.html`. `curl https://hello.staging.evdr.internal/version` (with the internal CA trusted) returns the build version.
 
 ## 9. Tear-down and rebuild drill (reproducibility proof)
