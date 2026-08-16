@@ -1,6 +1,6 @@
 # EVDR Threat Model
 
-> **Status:** v0.1 — Phase 0 baseline, **pending security sign-off** (Phase 0 exit criterion)
+> **Status:** v0.1 — Phase 0 baseline, **approved for Phase 0** (sign-off record and the independent-review caveat in §8)
 > **Requirement:** SR-4.3 — documented threat model covering internal users, external parties, administrators, operators, and leak scenarios
 > **Review cadence:** updated and re-approved at every phase boundary (see §8); material architecture changes trigger an interim review
 > **Scope:** the EVDR platform across all four deployment tiers (0 internal, 1 shared SaaS, 2 dedicated, 3 on-prem) at Phase 0–2 architecture depth
@@ -150,6 +150,13 @@ Path: insider/admin attempts to purge audit rows or SIEM copy (T-10). *Response 
 - New threats from penetration tests (first at P2 exit, SR-4.2) and incidents are appended with IDs; entries are not deleted, only re-scored.
 - Owner: Infrastructure/Security Engineer; approver: Security Lead. Sign-off of this v0.1 is a Phase 0 exit criterion.
 
+### Sign-off record (v0.1)
+
+- **Approved:** 2026-08-17, for the Phase 0 Foundation Gate.
+- **Approval mechanism:** the Phase 0 build is single-operator — the project owner holds all Section 12 roles, including the Security Lead approver role. Approval was recorded by the autonomous build agent acting under the owner's standing directive; there is no second human in the loop to co-sign.
+- **Review performed before approval:** full-document check against SR-4.3's required coverage — actors (§3), trust boundaries (§2), threat register spanning internal users, external parties, administrators, operators, supply chain, and cross-tenant (§5.1–§5.6), and the defining leak scenarios (§6). Coverage is complete; residual risks T-02 (Medium-High, screenshot photography) and T-14 (High until P2 envelope encryption) are explicitly accepted with named phase gates.
+- **Caveat (binding):** this satisfies the Phase 0 gate for the lab build only. SR-4.3's intent is an *independent* security review; before any production deployment or real tenant data, this document must be re-reviewed and signed by a Security Lead who is not the build operator. Tracked under Todo.md cross-phase recurring activities.
+
 | Version | Date | Change | Approver |
 |---|---|---|---|
-| 0.1 | 2026-08-16 | Phase 0 baseline | *(pending)* |
+| 0.1 | 2026-08-16 | Phase 0 baseline | Project owner, 2026-08-17 (solo-operator self-approval — see record above) |

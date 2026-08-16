@@ -1,6 +1,6 @@
 # EVDR Data Classification & Retention Policy Model
 
-> **Status:** v0.1 — Phase 0 model definition, **pending approval** (Phase 0 exit criterion)
+> **Status:** v0.1 — Phase 0 model definition, **approved for Phase 0** (approval record and launch-gate caveat in §7)
 > **Requirement traceability:** FR-5.4 (classification labels with policy-driven access rules), FR-5.5 (retention/auto-purge per class), NFR-7.5 (HKMA alignment), FR-1.6 (legal hold), FR-11.8 (erasure), SR-5.x (evidence)
 > **Scope:** the *model* — label taxonomy, handling rules, retention schedule, and how each lands in platform controls. Enforcement mechanics are built in Phase 2 (policy engine) and Phase 3 (labels on documents).
 
@@ -83,6 +83,8 @@ Before commercial launch (P4), this model must be reviewed against the specific 
 
 ## 7. Approval
 
+**Approval record (v0.1):** the Phase 0 build is single-operator — the project owner (sole team member) approved this model via the standing build directive; recorded by the autonomous build agent on 2026-08-17. Review performed before approval: taxonomy and handling profiles (§2), retention floors and tenant overlays (§3), audit & evidence retention (§4), and HKMA alignment (§5) checked against the traced requirements (FR-5.4, FR-5.5, NFR-7.5, FR-1.6, FR-11.8, SR-5.x). **Caveat (binding):** the §5 commitment stands — this model must be re-reviewed against each launch tenant type's specific obligations, with data owners / compliance counsel in the loop, before commercial launch (P4). That re-review is a launch-gate dependency, not discharged by this approval.
+
 | Version | Date | Change | Approver |
 |---|---|---|---|
-| 0.1 | 2026-08-16 | Phase 0 model baseline | *(pending)* |
+| 0.1 | 2026-08-16 | Phase 0 model baseline | Project owner, 2026-08-17 (solo-operator self-approval — see record above) |

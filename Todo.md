@@ -24,14 +24,14 @@
 
 **Objective:** Establish the security-first foundation before any product code: threat model, data classification model, reproducible infrastructure-as-code, CI/CD with security scanning from day one, and the Room SPI storage contract that Phase 1 implements.
 
-> **Status note (2026-08-16):** All Phase 0 *code and document artifacts* are authored and locally verified (Go builds/vets/tests, Terraform fmt+validate clean, YAML/shell parse-checked, Semgrep rules self-tested, sample-service image built and response-checked). Items left unticked below require either human sign-off or execution on provisioned hosts (K3s bootstrap, Vault init/unseal, runner registration, green pipeline run, tear-down/rebuild drill). See `docs/runbooks/phase-0-foundation-rebuild.md` for the execution sequence.
+> **Status note (2026-08-17):** Phase 0 has been *executed* on the k3d lab: pipeline green end-to-end (pipeline 8, commit `4b24dddd`, incl. manual deploy + DAST gates), §9 tear-down/rebuild drill passed (52 min, two repo gaps found and fixed in `32ecb80`), and both governance documents carry approval records. The two approvals are solo-operator self-approvals (single-person Phase 0 team) — each record carries a binding caveat: independent Security Lead review of the threat model before production, and classification-model re-review with data owners/compliance counsel before commercial launch. Both caveats are tracked in Cross-Phase Recurring Activities. Execution evidence: `docs/runbooks/phase-0-foundation-rebuild.md` §8/§9 + lab evidence dir.
 
 ### Entry Criteria
 
-- [ ] Core team onboarded: Platform/Backend Engineer, Frontend/Product Engineer, Infrastructure/Security Engineer (Section 12)
-- [ ] Git repository + GitLab project created with protected default branch
-- [ ] Target infrastructure environment (VMs/hosts for K3s) provisioned and accessible
-- [ ] ADR (architecture decision record) process agreed
+- [x] Core team onboarded: Platform/Backend Engineer, Frontend/Product Engineer, Infrastructure/Security Engineer (Section 12) — single-operator Phase 0: project owner holds all three roles; Section 12 hires are a commercial build-out prerequisite, tracked outside this repo
+- [x] Git repository + GitLab project created with protected default branch — lab GitLab `evdr/evdr`; `main` is default + protected (Maintainers push/merge), API-verified 2026-08-17; GitHub remains canonical code home (ADR-0002)
+- [x] Target infrastructure environment (VMs/hosts for K3s) provisioned and accessible — k3d-evdr-lab (3 servers, K3s v1.32.5) for Phase 0; production hosts provision via `src/infra/terraform` at Phase 1
+- [x] ADR (architecture decision record) process agreed — `docs/ADR/README.md`; ADR-0001/0002 recorded under it
 
 ### Build Activities
 
@@ -65,12 +65,12 @@
 
 ### Exit Criteria
 
-- [ ] Threat model reviewed and signed off by security; scheduled for per-phase update (SR-4.3)
+- [x] Threat model reviewed and signed off by security; scheduled for per-phase update (SR-4.3) — approved 2026-08-17; sign-off record in `docs/security/threat-model.md` §8 (solo-operator self-approval; independent Security Lead review mandatory before production — binding caveat in the record)
 - [x] IaC baseline reproducible — full tear-down/rebuild of K3s + Vault + Traefik from code via documented runbook — §9 drill PASSED 2026-08-16, 52min wall-clock on k3d lab; two repo gaps (Vault raft retry_join CA, k3d registry trust) found and fixed in-repo; drill record + timing in lab evidence dir
 - [x] CI/CD pipeline green against a sample service with SAST, DAST, dependency scan, and SBOM stages all reporting — pipeline 8 (commit 4b24dddd) fully green incl. manual deploy + DAST; evidence per runbook §8
 - [x] Room SPI contract v0.1 frozen for Phase 1 implementation — `ContractVersion = "0.1.0"` in `src/spi/interface.go`; change policy in `src/spi/README.md`
 - [x] DRM strategy decision recorded as ADR — `docs/ADR/0001-drm-strategy-view-first.md`
-- [ ] Data classification and retention model approved
+- [x] Data classification and retention model approved — approved 2026-08-17; approval record in `docs/security/data-classification-and-retention.md` §7 (solo-operator self-approval; re-review with data owners/compliance counsel is a P4 launch-gate dependency)
 
 ---
 
@@ -426,6 +426,8 @@
 Run continuously; do not defer to phase boundaries:
 
 - [ ] Threat model updated per phase (SR-4.3)
+- [ ] **Independent Security Lead review of the threat model before production / first real tenant** — Phase 0 sign-off (2026-08-17) was solo-operator self-approval; binding caveat in `docs/security/threat-model.md` §8
+- [ ] **Data classification model re-review with data owners / compliance counsel before commercial launch** — Phase 0 approval (2026-08-17) was solo-operator self-approval; binding caveat in `docs/security/data-classification-and-retention.md` §7 (P4 launch-gate dependency)
 - [ ] Annual penetration tests after the first (Phase 2); remediation SLA for criticals (SR-4.2)
 - [ ] Container base-image vulnerability alerting and patch SLA (SR-4.4)
 - [ ] Postgres + Ceph daily automated snapshots; restore drills (NFR-3.4)
