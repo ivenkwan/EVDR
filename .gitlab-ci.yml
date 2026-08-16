@@ -1,0 +1,268 @@
+# EVDR CI/CD security pipeline (TR-1.3, SR-4.1, SR-4.4).
+#
+# Every merge request and default-branch build runs: lint/validate, SAST
+# (Semgrep), dependency scanning (Trivy fs), unit tests, image build, image
+# scan (Trivy), and SBOM generation (Syft + Trivy). DAST (OWASP ZAP) runs
+# manually against the deployed staging sample. A scheduled pipeline re-scans
+# published images so newly-disclosed base-image CVEs alert without a commit
+# (SR-4.4 — see docs/security/vulnerability-management.md for the patch SLA).
+#
+# Runner: GitLab self-hosted runner with the `evdr-docker` tag (see
+# docs/runbooks/gitlab-runner.md). Credentials come from masked CI/CD
+# variables only — never from this file.
+
+stages:
+  - validate
+  - sast
+  - deps
+  - test
+  - build
+  - scan
+  - sbom
+  - staging
+  - dast
+
+variables:
+  SAMPLE_IMAGE: "$CI_REGISTRY_IMAGE/samples/hello-service"
+  IMAGE_TAG: "$CI_COMMIT_SHORT_SHA"
+  # Debian-based Go image (not alpine): the race detector needs cgo/gcc.
+  GO_IMAGE: "golang:1.25-bookworm"
+  TRIVY_IMAGE: "aquasec/trivy:0.58.2"
+  SEMGREP_IMAGE: "semgrep/semgrep:1.99.0"
+  SYFT_IMAGE: "anchore/syft:v1.18.1"
+  ZAP_IMAGE: "ghcr.io/zaproxy/zaproxy:stable"
+  TF_IMAGE: "hashicorp/terraform:1.10"
+
+default:
+  tags:
+    - evdr-docker
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# ---------------------------------------------------------------- validate ---
+
+lint:yaml:
+  stage: validate
+  image: cytopia/yamllint:1.35
+  script:
+    - yamllint -d relaxed src/infra ci samples .gitlab-ci.yml
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - when: on_success
+
+lint:go-fmt-vet:
+  stage: validate
+  image: $GO_IMAGE
+  script:
+    - test -z "$(gofmt -l src/ samples/)" || { gofmt -d src/ samples/; exit 1; }
+    - go vet ./src/...
+    - cd samples/hello-service && go vet ./... && cd "$CI_PROJECT_DIR"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - when: on_success
+
+lint:terraform:
+  stage: validate
+  image: $TF_IMAGE
+  script:
+    - terraform fmt -check -recursive src/infra/terraform
+    - |
+      for dir in src/infra/terraform/clouds/libvirt src/infra/terraform/live/tier0-lab; do
+        (cd "$dir" && terraform init -backend=false -input=false >/dev/null && terraform validate)
+      done
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - when: on_success
+
+# -------------------------------------------------------------------- sast ---
+
+sast:semgrep:
+  stage: sast
+  image: $SEMGREP_IMAGE
+  variables:
+    SEMGREP_APP_TOKEN: "" # local-rules mode; registry rulesets need no token but do need network
+  script:
+    # Local rules (ci/semgrep/rules.yml) keep SAST functional on self-hosted
+    # runners without registry access; extend with p/default where outbound
+    # network to the Semgrep registry is allowed.
+    - semgrep scan --config ci/semgrep/rules.yml --sarif --output semgrep.sarif --metrics=off src/ samples/
+    - semgrep scan --config ci/semgrep/rules.yml --error --metrics=off src/ samples/
+  artifacts:
+    when: always
+    paths: [semgrep.sarif]
+    expire_in: 30 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - when: on_success
+
+# -------------------------------------------------------------------- deps ---
+
+deps:trivy-fs:
+  stage: deps
+  image: $TRIVY_IMAGE
+  script:
+    # Dependency scanning: vulnerable packages from lockfiles/manifests.
+    - trivy fs --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --format json -o trivy-deps.json .
+    # Filesystem SBOM (dependency inventory) — complements the image SBOM.
+    - trivy fs --scanners vuln --format cyclonedx -o sbom-fs.cdx.json .
+  artifacts:
+    when: always
+    paths: [trivy-deps.json, sbom-fs.cdx.json]
+    expire_in: 30 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - when: on_success
+
+# -------------------------------------------------------------------- test ---
+
+test:go:
+  stage: test
+  image: $GO_IMAGE
+  script:
+    # src/ (root module — Room SPI contract) and samples/hello-service
+    # (nested module) are built/tested separately.
+    - go build ./src/...
+    - go test ./src/... -race
+    - cd samples/hello-service && go build ./... && go test ./... -race -coverprofile="$CI_PROJECT_DIR/coverage.out" && cd "$CI_PROJECT_DIR"
+  artifacts:
+    when: always
+    paths: [coverage.out]
+    expire_in: 7 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - when: on_success
+
+# ------------------------------------------------------------------- build ---
+
+build:hello-service:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  script:
+    - mkdir -p /kaniko/.docker
+    # Registry credentials are injected via masked CI/CD variables.
+    - |
+      echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor
+      --context "$CI_PROJECT_DIR/samples/hello-service"
+      --dockerfile "$CI_PROJECT_DIR/samples/hello-service/Dockerfile"
+      --destination "$SAMPLE_IMAGE:$IMAGE_TAG"
+      --destination "$SAMPLE_IMAGE:latest"
+      --label org.opencontainers.image.revision="$CI_COMMIT_SHA"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+# -------------------------------------------------------------------- scan ---
+
+scan:trivy-image:
+  stage: scan
+  image: $TRIVY_IMAGE
+  needs: ["build:hello-service"]
+  script:
+    # SR-4.4: CRITICAL image findings fail the pipeline (patch SLA in
+    # docs/security/vulnerability-management.md). HIGH is reported non-blocking
+    # until Phase 1 hardening review.
+    - trivy image --scanners vuln --severity CRITICAL --exit-code 1 --format json -o trivy-image.json "$SAMPLE_IMAGE:$IMAGE_TAG"
+    - trivy image --scanners vuln --severity HIGH --exit-code 0 "$SAMPLE_IMAGE:$IMAGE_TAG"
+  artifacts:
+    when: always
+    paths: [trivy-image.json]
+    expire_in: 30 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - when: on_success
+
+# Scheduled re-scan of the last published image: catches CVEs disclosed after
+# the build (base-image alerting, SR-4.4). Runs only on pipeline schedules.
+scan:scheduled-image-rescan:
+  stage: scan
+  image: $TRIVY_IMAGE
+  script:
+    - trivy image --scanners vuln --severity HIGH,CRITICAL --format json -o trivy-rescan.json "$SAMPLE_IMAGE:latest"
+    # Alert routing: the runner ships job logs to the alerting channel
+    # (docs/security/vulnerability-management.md §alerting).
+  artifacts:
+    when: always
+    paths: [trivy-rescan.json]
+    expire_in: 7 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# -------------------------------------------------------------------- sbom ---
+
+sbom:syft:
+  stage: sbom
+  image: $SYFT_IMAGE
+  needs: ["build:hello-service"]
+  script:
+    - syft "$SAMPLE_IMAGE:$IMAGE_TAG" -o cyclonedx-json=sbom-image.cdx.json
+    - syft "$SAMPLE_IMAGE:$IMAGE_TAG" -o spdx-json=sbom-image.spdx.json
+  artifacts:
+    when: always
+    paths: [sbom-image.cdx.json, sbom-image.spdx.json]
+    expire_in: 90 days # SBOMs retained as release evidence
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - when: on_success
+
+# ----------------------------------------------------------------- staging ---
+
+deploy:sample-staging:
+  stage: staging
+  image: bitnami/kubectl:1.32
+  needs: ["scan:trivy-image", "sbom:syft"]
+  environment:
+    name: staging/hello-service
+    url: https://hello.staging.evdr.internal
+  script:
+    # KUBECONFIG_B64 is a masked CI/CD variable holding the staging kubeconfig.
+    - echo "$KUBECONFIG_B64" | base64 -d > /tmp/kubeconfig
+    - export KUBECONFIG=/tmp/kubeconfig
+    - kubectl -n evdr-system apply -f samples/hello-service/deploy/
+    - kubectl -n evdr-system set image deployment/hello-service hello-service="$SAMPLE_IMAGE:$IMAGE_TAG"
+    - kubectl -n evdr-system rollout status deployment/hello-service --timeout=120s
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+
+# -------------------------------------------------------------------- dast ---
+
+dast:zap-baseline:
+  stage: dast
+  image: $ZAP_IMAGE
+  needs: ["deploy:sample-staging"]
+  variables:
+    DAST_TARGET_URL: "https://hello.staging.evdr.internal"
+  script:
+    # Baseline scan: passive + light active checks; ci/zap/rules.tsv sets
+    # per-rule thresholds. Fails on WARN or above by default (-I off = fail
+    # on WARN). Report is retained as evidence.
+    - mkdir -p /zap/wrk
+    - cp ci/zap/rules.tsv /zap/wrk/rules.tsv
+    - zap-baseline.py -t "$DAST_TARGET_URL" -c rules.tsv -r zap-report.html -w zap-report.md
+    - cp /zap/wrk/zap-report.html /zap/wrk/zap-report.md "$CI_PROJECT_DIR/" || true
+  artifacts:
+    when: always
+    paths: [zap-report.html, zap-report.md]
+    expire_in: 30 days
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual

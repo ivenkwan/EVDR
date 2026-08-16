@@ -1,0 +1,14 @@
+version: 2
+ethernets:
+  primary:
+    match:
+      name: "en*"
+    set-name: eth0
+    addresses:
+      - ${ip}/${prefix}
+    routes:
+      - to: default
+        via: ${gateway}
+    nameservers:
+      addresses:
+        - ${gateway}

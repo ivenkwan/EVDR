@@ -1,0 +1,47 @@
+# Default edge certificate, issued by Vault PKI, installed as the TLSStore
+# default. Per-application certificates are issued per Ingress from Phase 1.
+# Apply AFTER cluster-issuer-vault.yaml is Ready.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: traefik-default-cert
+  namespace: traefik
+spec:
+  secretName: traefik-default-cert
+  # Keep dnsNames byte-lexically sorted ('*' < letters): Vault sorts SANs on
+  # issuance while cert-manager compares issued-vs-requested order; a
+  # mismatch re-triggers issuance.
+  dnsNames:
+    - "*.evdr.internal"
+    - evdr.internal
+  # No spec.commonName: the role sets require_cn=false and this exact shape
+  # (CN-less, sorted SANs, ECDSA P-256) is the lab-verified convergent one.
+  # (The Phase 0 InvalidKeyPair loop once attributed to the CN was in fact
+  # root-caused to the issuer pointing at Vault's /issue/ endpoint, which
+  # ignores CSRs — see cluster-issuer-vault.yaml. CN-less remains the tested
+  # configuration.)
+  duration: 720h # must equal the pki_int evdr-internal role ttl (see bootstrap-vault.sh)
+  renewBefore: 240h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: vault-pki-issuer
+    kind: ClusterIssuer
+---
+apiVersion: traefik.io/v1alpha1
+kind: TLSStore
+metadata:
+  name: default
+  namespace: traefik
+spec:
+  defaultCertificate:
+    secretName: traefik-default-cert
+  # certificates[] is REQUIRED, not redundant: with sniStrict=true (see
+  # tls-option.yaml), Traefik rejects any SNI that does not match a
+  # certificate's SANs — and only entries in certificates[] are indexed for
+  # SNI matching. defaultCertificate is just the non-SNI fallback, so without
+  # this list every handshake dies with alert 112 (unrecognized_name),
+  # verified in the Phase 0 lab.
+  certificates:
+    - secretName: traefik-default-cert

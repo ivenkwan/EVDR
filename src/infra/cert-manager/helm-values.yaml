@@ -1,0 +1,22 @@
+# cert-manager Helm values — EVDR baseline.
+# Chart: cert-manager/cert-manager (pin chart version at install time; see runbook).
+#
+#   helm upgrade --install cert-manager cert-manager/cert-manager \
+#     --namespace cert-manager --create-namespace \
+#     -f src/infra/cert-manager/helm-values.yaml
+
+crds:
+  enabled: true
+
+replicaCount: 2
+
+webhook:
+  replicaCount: 1
+
+cainjector:
+  replicaCount: 1
+
+# Prometheus ServiceMonitors are wired with the monitoring stack in Phase 1
+# (TR-11.1); the exporter endpoints are on by default.
+prometheus:
+  enabled: false

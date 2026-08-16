@@ -1,0 +1,67 @@
+# Secrets & environment — NEVER commit (CLAUDE.md hard rule)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+id_rsa*
+id_ed25519*
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+**/terraform.tfvars
+!**/terraform.tfvars.example
+.terraform.lock.hcl
+
+# Kubernetes / Vault
+kubeconfig
+*.kubeconfig
+kubeconfig.*
+vault-unseal*.json
+vault-init*.json
+
+# Go
+bin/
+*.exe
+*.test
+*.out
+vendor/
+
+# Node / TypeScript
+node_modules/
+.next/
+dist/
+build/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Scanner & report artifacts (CI produces these as pipeline artifacts)
+semgrep.sarif
+trivy-*.json
+sbom-*.json
+sbom.cdx.json
+zap-report.*
+coverage.out
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Local AI-tooling state (session-specific, never committed)
+.mimosa/

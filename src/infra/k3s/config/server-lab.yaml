@@ -1,0 +1,48 @@
+# K3s server configuration — LAB profile (k3d on Docker Desktop).
+#
+# Derives from server.yaml (the hardened production baseline) with the
+# following documented deviations, forced by the containerized substrate:
+#
+#   1. protect-kernel-defaults is OMITTED — k3d nodes are containers sharing
+#      the Docker Desktop VM kernel; a container must not tune host sysctls.
+#      On VM/bare-metal nodes, server.yaml enables it.
+#   2. local-storage is NOT disabled — the lab has no Rook/Ceph; PVCs (e.g.
+#      Vault raft, audit storage) bind to Rancher's local-path provisioner.
+#      Production disables it per server.yaml and uses Ceph RGW via Rook.
+#   3. Networking is the STOCK K3s stack (flannel + kube-proxy + embedded
+#      kube-router NetworkPolicy controller), same as production — Cilium
+#      was evaluated for the lab and rejected: with iptables kube-proxy,
+#      DNAT happens after CNI policy evaluation so selector-based egress
+#      rules never match; with Cilium kube-proxy replacement, pod→ClusterIP
+#      service translation failed on the k3d substrate (see runbook notes).
+#      Revisit Cilium as a deliberate ADR if eBPF networking is wanted.
+#
+# Everything else (secrets encryption, TLS suites, audit logging, etcd
+# snapshots, kubeconfig mode) is identical to the production baseline.
+
+write-kubeconfig-mode: "0600"
+secrets-encryption: true
+
+disable:
+  - traefik
+
+tls-cipher-suites:
+  - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+  - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+  - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+  - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+  - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+  - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+
+kube-apiserver-arg:
+  - "enable-admission-plugins=NodeRestriction"
+  - "audit-log-path=/var/lib/rancher/k3s/server/logs/audit.log"
+  - "audit-log-maxage=30"
+  - "audit-log-maxbackup=10"
+  - "audit-log-maxsize=100"
+
+kubelet-arg:
+  - "serialize-image-pulls=false"
+
+etcd-snapshot-schedule-cron: "0 */6 * * *"
+etcd-snapshot-retention: 28

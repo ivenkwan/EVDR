@@ -1,0 +1,50 @@
+#cloud-config
+hostname: ${hostname}
+fqdn: ${hostname}.${domain}
+manage_etc_hosts: true
+preserve_hostname: false
+
+users:
+  - name: evdr-admin
+    gecos: EVDR platform administrator
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+    ssh_authorized_keys:
+%{ for key in ssh_keys ~}
+      - ${key}
+%{ endfor ~}
+
+ssh_pwauth: false
+disable_root: true
+
+package_update: true
+packages:
+  - curl
+  - ca-certificates
+  - iptables
+  - nfs-common
+
+# K3s prerequisites: kernel modules, sysctl, swap off. K3s itself is installed
+# by src/infra/k3s/scripts/* so that node imaging and cluster bootstrap stay
+# separately reproducible steps.
+write_files:
+  - path: /etc/modules-load.d/k3s.conf
+    permissions: "0644"
+    content: |
+      br_netfilter
+      overlay
+  - path: /etc/sysctl.d/90-k3s.conf
+    permissions: "0644"
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+
+runcmd:
+  - swapoff -a
+  - sed -i '/ swap / s/^/#/' /etc/fstab
+  - modprobe br_netfilter
+  - modprobe overlay
+  - sysctl --system

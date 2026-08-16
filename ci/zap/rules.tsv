@@ -1,0 +1,13 @@
+# OWASP ZAP baseline scan rule thresholds (SR-4.1 DAST).
+# Format: RULE_ID<TAB>ACTION<TAB>Description. Actions: IGNORE, INFO, WARN, FAIL.
+# Start strict-but-pragmatic: missing hardening headers FAIL (they are cheap
+# and platform-controlled); informational findings stay INFO.
+10021	FAIL	X-Content-Type-Options Header Missing
+10020	FAIL	X-Frame-Options Header Not Set
+10038	FAIL	Content Security Policy Header Not Set (baseline app must set CSP)
+10016	INFO	Web Browser XSS Protection Not Enabled (legacy header)
+10063	INFO	Permissions Policy Header Not Set
+10015	WARN	Re-examine Cache-control Directives
+10027	INFO	Information Disclosure - Suspicious Comments
+10098	INFO	Cross-Domain Misconfiguration
+10104	INFO	User Agent Fuzzer

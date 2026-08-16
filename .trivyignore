@@ -1,0 +1,5 @@
+# Trivy suppressions (SR-4.4). One CVE ID per line, and every line requires a
+# comment with: justification, linked ticket/decision, and expiry date.
+# Suppressions without an expiry are rejected in review.
+# Example:
+# CVE-2024-00000 # accepted-risk: false positive in distroless glibc; ticket SEC-123; expires 2026-11-01

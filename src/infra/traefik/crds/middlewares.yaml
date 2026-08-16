@@ -1,0 +1,47 @@
+# Baseline edge middlewares (TR-1.5). Attach to IngressRoutes/Ingresses as
+# needed from Phase 1; per-tenant generated middlewares build on these.
+---
+# Cluster-wide edge rate limit — first noisy-neighbour line (groundwork for
+# SR-3.2 per-tenant limits, Phase 1).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: edge-rate-limit
+  namespace: traefik
+spec:
+  rateLimit:
+    average: 300
+    period: 1s
+    burst: 150
+    sourceCriterion:
+      ipStrategy:
+        depth: 1 # key on immediate X-Forwarded-For hop (client IP preserved by externalTrafficPolicy: Local)
+---
+# Transient-failure resilience. Traefik v3 removed the v1 circuit-breaker
+# middleware; retry + readiness + rate limits are the delivered equivalents
+# (see README requirement-mapping notes).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: edge-retry
+  namespace: traefik
+spec:
+  retry:
+    attempts: 3
+    initialInterval: 250ms
+---
+# Security response headers for browser-facing routes.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: edge-security-headers
+  namespace: traefik
+spec:
+  headers:
+    frameDeny: true
+    contentTypeNosniff: true
+    referrerPolicy: "strict-origin-when-cross-origin"
+    stsSeconds: 15552000
+    stsIncludeSubdomains: true
+    customResponseHeaders:
+      X-Robots-Tag: "noindex, nofollow"

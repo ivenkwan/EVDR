@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars (git-ignored) and fill in environment specifics.
+# Never commit terraform.tfvars — it contains environment-specific values.
+
+# Path or URL to an Ubuntu Server 24.04 cloud image visible to the hypervisor.
+base_image = "/var/lib/libvirt/images/ubuntu-24.04-server-cloudimg-amd64.img"
+
+# Admin SSH public keys — reference your key files, e.g. in tfvars:
+#   ssh_authorized_keys = [file("~/.ssh/id_ed25519.pub")]
+# (file() reads at plan time; the key content itself is never stored in this repo)
+ssh_authorized_keys = []
+
+# libvirt_uri   = "qemu+ssh://root@hypervisor.example.internal/system"
+# node_count    = 3
+# network_cidr  = "10.40.0.0/24"

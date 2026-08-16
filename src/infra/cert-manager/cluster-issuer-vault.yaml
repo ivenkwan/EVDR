@@ -1,0 +1,33 @@
+# Steady-state internal issuer backed by Vault PKI (pki_int).
+# Apply ONLY after src/infra/vault/bootstrap/bootstrap-vault.sh has completed
+# (it creates the pki_int/roles/evdr-internal role and the cert-manager auth
+# role referenced here). Requires cert-manager >= v1.16 (caBundleSecretRef).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: vault-pki-issuer
+spec:
+  vault:
+    server: https://vault.vault.svc:8200
+    # CSR-signing endpoint — must match the pki-issuer policy, which grants
+    # pki_int/sign/evdr-internal. Do NOT point this at pki_int/issue/...:
+    # /issue/ is Vault's server-side key-generation endpoint — it silently
+    # IGNORES the csr parameter and returns its own generated private_key.
+    # cert-manager then sees a cert that does not match its private key and
+    # re-issues forever (InvalidKeyPair loop, root-caused in the Phase 0 lab
+    # via Vault audit log + endpoint probes).
+    path: pki_int/sign/evdr-internal
+    # Vault's serving cert chains to the bootstrap CA, so that CA is the
+    # trust anchor for cert-manager's connection to Vault. The CRD schema
+    # (v1.16–v1.17) has no namespace field here — the secret must live in
+    # cert-manager's cluster resource namespace (the cert-manager namespace
+    # by default), which is where the internal-bootstrap-ca secret exists.
+    caBundleSecretRef:
+      name: internal-bootstrap-ca
+      key: ca.crt
+    auth:
+      kubernetes:
+        role: cert-manager # created by bootstrap-vault.sh (policy: pki-issuer)
+        mountPath: /v1/auth/kubernetes
+        serviceAccountRef:
+          name: cert-manager

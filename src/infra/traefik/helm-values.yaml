@@ -1,0 +1,67 @@
+# Traefik Helm values — EVDR edge baseline (TR-1.5).
+# Chart: traefik/traefik (Traefik v3 line; pin chart version at install time).
+#
+#   helm upgrade --install traefik traefik/traefik \
+#     --namespace traefik --create-namespace \
+#     -f src/infra/traefik/helm-values.yaml
+
+deployment:
+  replicas: 2
+
+# PodSecurity "restricted" compliance (lab namespaces enforce/warn it):
+# seccompProfile must be set explicitly or admission warns on every rollout.
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
+
+# Single replica-disruption guard for voluntary maintenance.
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+
+ports:
+  web:
+    port: 80
+    # Chart 33.x schema: redirectTo.port is a port NAME reference
+    # (renders --entryPoints.web.http.redirections.*, scheme=https).
+    redirectTo:
+      port: websecure
+      permanent: true
+  websecure:
+    port: 443
+    tls:
+      enabled: true
+      options: "default" # TLSOption CR named "default" (crds/tls-option.yaml)
+
+providers:
+  kubernetesCRD:
+    enabled: true
+    allowCrossNamespace: false
+  kubernetesIngress:
+    enabled: true
+
+logs:
+  general:
+    format: json
+    level: INFO
+  access:
+    enabled: true
+    format: json
+
+# Scraped by the Phase 1 Prometheus stack (TR-11.1).
+metrics:
+  prometheus:
+    enabled: true
+    entryPoint: metrics
+
+service:
+  type: LoadBalancer # K3s ServiceLB provides lab LBs; MetalLB decision at real cells
+  spec:
+    externalTrafficPolicy: Local # preserve client IPs for rate limiting and audit

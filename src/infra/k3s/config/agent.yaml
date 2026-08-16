@@ -1,0 +1,5 @@
+# K3s agent configuration — used only when worker nodes are separate from
+# server nodes (Phase 0 lab runs servers only, schedulable by default).
+
+write-kubeconfig-mode: "0600"
+protect-kernel-defaults: true

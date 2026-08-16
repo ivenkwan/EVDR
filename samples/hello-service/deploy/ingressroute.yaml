@@ -1,0 +1,63 @@
+# Edge exposure for the DAST target. Middlewares are defined in-namespace
+# (Traefik runs with allowCrossNamespace: false — see src/infra/traefik).
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: hello-security-headers
+  namespace: evdr-system
+spec:
+  headers:
+    frameDeny: true
+    contentTypeNosniff: true
+    referrerPolicy: "strict-origin-when-cross-origin"
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: hello-rate-limit
+  namespace: evdr-system
+spec:
+  rateLimit:
+    average: 100
+    period: 1s
+    burst: 50
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: hello-service
+  namespace: evdr-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`hello.staging.evdr.internal`)
+      kind: Rule
+      middlewares:
+        - name: hello-security-headers
+        - name: hello-rate-limit
+      services:
+        - name: hello-service
+          port: 80
+  tls:
+    secretName: hello-staging-tls
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: hello-staging-tls
+  namespace: evdr-system
+spec:
+  secretName: hello-staging-tls
+  commonName: hello.staging.evdr.internal
+  dnsNames:
+    - hello.staging.evdr.internal
+  duration: 720h
+  renewBefore: 240h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: vault-pki-issuer
+    kind: ClusterIssuer

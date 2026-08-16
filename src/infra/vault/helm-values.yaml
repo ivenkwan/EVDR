@@ -1,0 +1,80 @@
+# Vault Helm values — EVDR HA baseline (TR-1.4).
+# Chart: hashicorp/vault (pin the chart version at install time; see runbook).
+#
+# Deploy:
+#   helm upgrade --install vault hashicorp/vault \
+#     --namespace vault --create-namespace \
+#     -f src/infra/vault/helm-values.yaml
+
+global:
+  enabled: true
+  tlsDisable: false # SR-1.2 — TLS everywhere, including in-cluster
+
+injector:
+  # Sidecar injector is used by application services from Phase 1 onward.
+  enabled: true
+  metrics:
+    enabled: false
+
+server:
+  # Serving certificate issued by cert-manager (bootstrap CA until Vault PKI
+  # is live — see README.md "Bootstrap order").
+  extraVolumes:
+    - type: secret
+      name: vault-tls # cert-manager Certificate in the vault namespace
+  extraEnvironmentVars:
+    VAULT_ADDR: "https://vault.vault.svc:8200"
+
+  dataStorage:
+    enabled: true
+    size: 10Gi
+  auditStorage:
+    enabled: true # file audit device target; enabled in bootstrap before secrets
+    size: 5Gi
+
+  standalone:
+    enabled: false
+
+  ha:
+    enabled: true
+    replicas: 3
+    raft:
+      enabled: true
+      setNodeId: true
+      # Chart 0.29.x: when ha.raft.enabled=true the config ConfigMap renders
+      # ha.raft.config and IGNORES ha.config (templates/_helpers.tpl,
+      # "vault.config"). The listener/storage config must live here.
+      config: |
+        ui = false
+
+        listener "tcp" {
+          address         = "[::]:8200"
+          cluster_address = "[::]:8201"
+          tls_cert_file   = "/vault/userconfig/vault-tls/tls.crt"
+          tls_key_file    = "/vault/userconfig/vault-tls/tls.key"
+          tls_min_version = "tls12"
+        }
+
+        storage "raft" {
+          path = "/vault/data"
+        }
+
+        service_registration "kubernetes" {}
+
+        # Log level kept at info; audit device carries the security trail.
+        log_level = "info"
+
+      # Raft snapshots are taken by scheduled job (runbook) ahead of the full
+      # backup storey (NFR-3.4).
+
+  # Anti-affinity keeps Vault nodes on separate K3s nodes.
+  affinity: |
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: vault
+          topologyKey: kubernetes.io/hostname
+
+ui:
+  enabled: false # Vault UI off; CLI/API only — one less attack surface

@@ -1,0 +1,255 @@
+# Network isolation baseline (SR-3.1). Enforced by the cluster CNI's
+# NetworkPolicy engine (Cilium in the k3d lab profile; K3s's embedded
+# controller where flannel is kept) from the moment they are applied.
+#
+# Model: every platform namespace starts default-deny on BOTH ingress and
+# egress, then receives explicit allows. Application namespaces (evdr-system)
+# get their policies generated with the services they host from Phase 1.
+
+# ============ traefik (public edge) ============
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: traefik
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-edge-ingress
+  namespace: traefik
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  policyTypes: [Ingress]
+  ingress:
+    - # The edge is the one place external traffic may enter (TB1).
+      ports:
+        - port: 80
+          protocol: TCP
+        - port: 443
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-traefik-egress-backends
+  namespace: traefik
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  policyTypes: [Egress]
+  egress:
+    - # In-cluster backends (K3s default pod/service CIDRs).
+      to:
+        - ipBlock:
+            cidr: 10.42.0.0/16 # pods
+        - ipBlock:
+            cidr: 10.43.0.0/16 # services
+    - to: # kube-dns
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to: # K8s API (ingress watches)
+        - ipBlock:
+            cidr: 10.43.0.1/32
+      ports:
+        - port: 443
+          protocol: TCP
+    - to: # K8s API post-DNAT: kube-proxy translates the ClusterIP to a node
+          # IP:6443 before CNI policy evaluation. The node subnet MUST match
+          # the environment (libvirt lab: 10.40.0.0/24; k3d lab: 172.30.0.0/24
+          # pinned via k3d cluster create --subnet).
+        - ipBlock:
+            cidr: 172.30.0.0/24
+      ports:
+        - port: 6443
+          protocol: TCP
+---
+# ============ cert-manager ============
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: cert-manager
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cert-manager
+  namespace: cert-manager
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - # webhook calls come from the API server (host network on the nodes).
+      # On flannel, node→pod traffic enters the overlay with the node's
+      # flannel.1 IP (10.42.0.0/32), so the pod CIDR must be allowed too —
+      # the webhook is still protected by TLS + request validation. Direct
+      # node-subnet access is allowed for CNIs without overlay SNAT.
+      from:
+        - ipBlock:
+            cidr: 10.42.0.0/16
+        - ipBlock:
+            cidr: 172.30.0.0/24
+        - ipBlock:
+            cidr: 10.40.0.0/24
+      ports:
+        - port: 10250
+          protocol: TCP
+  egress:
+    - to: # Vault (issuance)
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vault
+      ports:
+        - port: 8200
+          protocol: TCP
+    - to: # kube-dns
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to: # K8s API
+        - ipBlock:
+            cidr: 10.43.0.1/32
+      ports:
+        - port: 443
+          protocol: TCP
+    - to: # K8s API post-DNAT (node subnet — see traefik rule comment)
+        - ipBlock:
+            cidr: 172.30.0.0/24
+      ports:
+        - port: 6443
+          protocol: TCP
+---
+# ============ vault ============
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: vault
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-vault
+  namespace: vault
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: # API access from platform + application namespaces only
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cert-manager
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: evdr-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vault
+      ports:
+        - port: 8200
+          protocol: TCP
+        - port: 8201 # raft cluster traffic (vault peers)
+          protocol: TCP
+  egress:
+    - to: # kube-dns
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to: # K8s API (Kubernetes auth TokenReview, service registration)
+        - ipBlock:
+            cidr: 10.43.0.1/32
+      ports:
+        - port: 443
+          protocol: TCP
+    - to: # K8s API post-DNAT (node subnet — see traefik rule comment)
+        - ipBlock:
+            cidr: 172.30.0.0/24
+      ports:
+        - port: 6443
+          protocol: TCP
+---
+# ============ evdr-system (application services, from Phase 1) ============
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: evdr-system
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-evdr-system-baseline
+  namespace: evdr-system
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: # only the edge may drive traffic to application services
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+  egress:
+    - to: # kube-dns
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to: # Vault (dynamic secrets, transit)
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vault
+      ports:
+        - port: 8200
+          protocol: TCP
+    - to: # K8s API
+        - ipBlock:
+            cidr: 10.43.0.1/32
+      ports:
+        - port: 443
+          protocol: TCP
+    - to: # K8s API post-DNAT (node subnet — see traefik rule comment)
+        - ipBlock:
+            cidr: 172.30.0.0/24
+      ports:
+        - port: 6443
+          protocol: TCP
+    - to: # intra-namespace service traffic
+        - podSelector: {}

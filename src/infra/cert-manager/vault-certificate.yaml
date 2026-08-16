@@ -1,0 +1,27 @@
+# Vault's serving certificate, issued by the bootstrap CA.
+# Apply after cert-manager + bootstrap-ca.yaml, before helm-installing Vault.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: vault-tls
+  namespace: vault
+spec:
+  secretName: vault-tls # consumed by src/infra/vault/helm-values.yaml (extraVolumes)
+  commonName: vault.vault.svc
+  duration: 720h
+  renewBefore: 240h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  dnsNames:
+    - vault.vault.svc
+    - vault.vault.svc.cluster.local
+    - vault-internal
+    - "*.vault-internal"
+    - "*.vault.vault.svc"
+    - localhost
+  ipAddresses:
+    - "127.0.0.1"
+  issuerRef:
+    name: internal-bootstrap-ca
+    kind: ClusterIssuer

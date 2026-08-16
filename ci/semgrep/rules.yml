@@ -1,0 +1,65 @@
+# Local Semgrep rules (SR-4.1). Kept in-repo so SAST runs on self-hosted
+# runners without outbound registry access. Extend with registry rulesets
+# (p/default, p/golang) where egress to the Semgrep registry is allowed
+# (see src/infra/network/egress-allowlist.md).
+rules:
+  - id: hardcoded-credential-literal
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      Possible hardcoded credential. Secrets must come from the environment
+      or Vault — never literals in source, examples, or tests (repo rule).
+    paths:
+      include:
+        - "*.go"
+        - "*.yaml"
+        - "*.yml"
+        - "*.tf"
+        - "*.sh"
+        - "*.hcl"
+    patterns:
+      # First content character must not be "$" — command substitution and
+      # variable references ("$(vault ...)", "${VAR}") are the CORRECT
+      # pattern and are excluded; only true literals match.
+      - pattern-regex: '(?i)(password|passwd|secret|api[_-]?key|token)\s*[:=]\s*"[^"$][^"]{7,}"'
+
+  - id: tls-verification-disabled
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      TLS verification disabled. SR-1.2 requires verified TLS 1.2/1.3 on all
+      connections; if this is a test fixture, scope and justify it.
+    paths:
+      include:
+        - "*.go"
+        - "*.yaml"
+        - "*.yml"
+        - "*.tf"
+        - "*.sh"
+        - "*.hcl"
+    patterns:
+      - pattern-regex: '(?i)(InsecureSkipVerify\s*[:=]\s*true|tls[-_]skip[-_]verify\s*[:=]\s*true|--insecure-skip-tls-verify)'
+
+  - id: go-net-http-server-without-timeouts
+    languages: [go]
+    severity: WARNING
+    message: >-
+      http server created without explicit timeouts. Use http.Server with
+      ReadHeaderTimeout/ReadTimeout/IdleTimeout (slowloris resistance).
+    patterns:
+      - pattern-either:
+          - pattern: http.ListenAndServe(...)
+          - pattern: http.ListenAndServeTLS(...)
+
+  - id: k8s-image-latest-tag
+    languages: [yaml]
+    severity: WARNING
+    message: >-
+      Avoid :latest image tags in manifests; pin immutable versions so CI
+      image scanning (SR-4.4) maps to exactly one artifact.
+    paths:
+      include:
+        - "*.yaml"
+        - "*.yml"
+    patterns:
+      - pattern-regex: 'image:\s*["'']?[^\s"''@]+:latest["'']?'

@@ -24,6 +24,8 @@
 
 **Objective:** Establish the security-first foundation before any product code: threat model, data classification model, reproducible infrastructure-as-code, CI/CD with security scanning from day one, and the Room SPI storage contract that Phase 1 implements.
 
+> **Status note (2026-08-16):** All Phase 0 *code and document artifacts* are authored and locally verified (Go builds/vets/tests, Terraform fmt+validate clean, YAML/shell parse-checked, Semgrep rules self-tested, sample-service image built and response-checked). Items left unticked below require either human sign-off or execution on provisioned hosts (K3s bootstrap, Vault init/unseal, runner registration, green pipeline run, tear-down/rebuild drill). See `docs/runbooks/phase-0-foundation-rebuild.md` for the execution sequence.
+
 ### Entry Criteria
 
 - [ ] Core team onboarded: Platform/Backend Engineer, Frontend/Product Engineer, Infrastructure/Security Engineer (Section 12)
@@ -35,13 +37,13 @@
 
 **Governance & Security**
 
-- [ ] Author threat model covering internal users, external parties, administrators, operators, and leak scenarios (SR-4.3)
-- [ ] Define data classification and retention policy model (FR-5.4, NFR-7.5)
-- [ ] Record DRM strategy decision: view-first default, controlled export model — bounded R&D track for PPAD (FR-3.7)
+- [x] Author threat model covering internal users, external parties, administrators, operators, and leak scenarios (SR-4.3) — `docs/security/threat-model.md` v0.1, sign-off pending
+- [x] Define data classification and retention policy model (FR-5.4, NFR-7.5) — `docs/security/data-classification-and-retention.md`, approval pending
+- [x] Record DRM strategy decision: view-first default, controlled export model — bounded R&D track for PPAD (FR-3.7) — `docs/ADR/0001-drm-strategy-view-first.md` (Accepted)
 
 **Infrastructure & IaC**
 
-- [ ] Terraform IaC baseline: VMs, networks, storage classes; cloud-agnostic (TR-1.2)
+- [x] Terraform IaC baseline: VMs, networks, storage classes; cloud-agnostic (TR-1.2) — `src/infra/terraform/` module contract + libvirt reference impl; fmt/validate clean
 - [ ] Bootstrap K3s cluster — Docker + Kubernetes runtime (TR-1.1)
 - [ ] Deploy HashiCorp Vault: dynamic secrets, encryption-as-a-service, PKI (TR-1.4)
 - [ ] Deploy Traefik reverse proxy / API gateway with automatic TLS (TR-1.5)
@@ -59,15 +61,15 @@
 
 **Contracts**
 
-- [ ] Draft Room SPI interface contract: `CreateRoom`, `GrantAccess`, `RevokeAccess`, `PutDocument`, `GetRenderStream`, `ListVersions`, `ApplyRetention`, `ExportRoom`, `SealRoom` (TR-2.1)
+- [x] Draft Room SPI interface contract: `CreateRoom`, `GrantAccess`, `RevokeAccess`, `PutDocument`, `GetRenderStream`, `ListVersions`, `ApplyRetention`, `ExportRoom`, `SealRoom` (TR-2.1) — `src/spi/` v0.1.0, builds + vets clean
 
 ### Exit Criteria
 
 - [ ] Threat model reviewed and signed off by security; scheduled for per-phase update (SR-4.3)
 - [ ] IaC baseline reproducible — full tear-down/rebuild of K3s + Vault + Traefik from code via documented runbook
 - [ ] CI/CD pipeline green against a sample service with SAST, DAST, dependency scan, and SBOM stages all reporting
-- [ ] Room SPI contract v0.1 frozen for Phase 1 implementation
-- [ ] DRM strategy decision recorded as ADR
+- [x] Room SPI contract v0.1 frozen for Phase 1 implementation — `ContractVersion = "0.1.0"` in `src/spi/interface.go`; change policy in `src/spi/README.md`
+- [x] DRM strategy decision recorded as ADR — `docs/ADR/0001-drm-strategy-view-first.md`
 - [ ] Data classification and retention model approved
 
 ---

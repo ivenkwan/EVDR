@@ -1,0 +1,60 @@
+# Platform namespaces with Pod Security Standards labels (SR-3.1 groundwork).
+# evdr-system hosts application services from Phase 1; storage and monitoring
+# land with Rook/Ceph and the observability stack.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: traefik
+  labels:
+    evdr.io/scope: platform
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+  labels:
+    evdr.io/scope: platform
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vault
+  labels:
+    evdr.io/scope: platform
+    # Vault runs with a hardened but not fully restricted profile (raft needs
+    # more than restricted allows); hostNetwork is not used anywhere.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: evdr-system
+  labels:
+    evdr.io/scope: application
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: storage
+  labels:
+    evdr.io/scope: platform
+    # Rook/Ceph requires elevated privileges; enforced at baseline with
+    # explicit per-component exceptions reviewed at Phase 1.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    evdr.io/scope: platform
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
