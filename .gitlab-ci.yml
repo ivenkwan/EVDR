@@ -232,10 +232,11 @@ sbom:syft:
   needs: ["build:hello-service"]
   script:
     # Registry auth via GitLab's predefined CI_REGISTRY_* variables.
+    # /syft absolute: the -debug image keeps the binary at /, off busybox PATH.
     - export SYFT_REGISTRY_AUTH_USERNAME="$CI_REGISTRY_USER"
     - export SYFT_REGISTRY_AUTH_PASSWORD="$CI_REGISTRY_PASSWORD"
-    - syft "$SAMPLE_IMAGE:$IMAGE_TAG" -o cyclonedx-json=sbom-image.cdx.json
-    - syft "$SAMPLE_IMAGE:$IMAGE_TAG" -o spdx-json=sbom-image.spdx.json
+    - /syft "$SAMPLE_IMAGE:$IMAGE_TAG" -o cyclonedx-json=sbom-image.cdx.json
+    - /syft "$SAMPLE_IMAGE:$IMAGE_TAG" -o spdx-json=sbom-image.spdx.json
   artifacts:
     when: always
     paths: [sbom-image.cdx.json, sbom-image.spdx.json]
