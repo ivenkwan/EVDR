@@ -129,6 +129,8 @@ kubectl apply -f src/infra/traefik/crds/
 
 Follow `docs/runbooks/gitlab-runner.md`, then push a branch and confirm the pipeline goes green through `sbom`; run `deploy:sample-staging` and `dast:zap-baseline` manually.
 
+> Lab note: on the Windows/Docker Desktop lab host, runner + GitLab plumbing differs from this production path (socket source, VM path mapping, artifacts volume, network alias). See `docs/lab/windows-docker-desktop.md` before registering the runner there.
+
 The container registry is private (anonymous pull is denied), so the staging namespace needs pull credentials before the first `deploy:sample-staging` run. Use a GitLab **deploy token** (`read_registry` scope) — not a personal token — and pass its value via the environment, never into files:
 
 ```bash

@@ -43,21 +43,21 @@
 
 **Infrastructure & IaC**
 
-- [x] Terraform IaC baseline: VMs, networks, storage classes; cloud-agnostic (TR-1.2) — `src/infra/terraform/` module contract + libvirt reference impl; fmt/validate clean
-- [ ] Bootstrap K3s cluster — Docker + Kubernetes runtime (TR-1.1)
-- [ ] Deploy HashiCorp Vault: dynamic secrets, encryption-as-a-service, PKI (TR-1.4)
-- [ ] Deploy Traefik reverse proxy / API gateway with automatic TLS (TR-1.5)
-- [ ] Enforce TLS 1.2/1.3 on all connections incl. internal service-to-service (SR-1.2)
-- [ ] Network isolation baseline: shared VPC with egress controls (SR-3.1)
+- [x] Terraform IaC baseline: VMs, networks, storage classes; cloud-agnostic (TR-1.2) — `src/infra/terraform/` module contract + libvirt reference impl; fmt/validate clean (WSL2 libvirt apply proved module: 3 VMs created; pivoted to k3d for lab runtime after WSL daemon instability — docs/ADR/0002)
+- [x] Bootstrap K3s cluster — Docker + Kubernetes runtime (TR-1.1) — k3d-evdr-lab, 3 servers, K3s v1.32.5
+- [x] Deploy HashiCorp Vault: dynamic secrets, encryption-as-a-service, PKI (TR-1.4) — 3-node raft, transit + pki/pki_int, break-glass drill done
+- [x] Deploy Traefik reverse proxy / API gateway with automatic TLS (TR-1.5) — v3 chart 33.2.1, Vault-backed cluster issuer, default cert Ready
+- [x] Enforce TLS 1.2/1.3 on all connections incl. internal service-to-service (SR-1.2) — openssl verified: TLS1.1 rejected, 1.2/1.3 succeed
+- [x] Network isolation baseline: shared VPC with egress controls (SR-3.1) — namespaces + default-deny policies applied; lab-verified
 
 **CI/CD Security Pipeline**
 
-- [ ] GitLab CI with self-hosted runner (TR-1.3)
-- [ ] SAST — Semgrep (TR-1.3, SR-4.1)
-- [ ] DAST — OWASP ZAP (TR-1.3, SR-4.1)
-- [ ] Dependency scanning (TR-1.3, SR-4.1)
-- [ ] SBOM generation (TR-1.3, SR-4.1)
-- [ ] Trivy container image scanning in CI with vulnerability alerting and patch SLA (SR-4.4)
+- [x] GitLab CI with self-hosted runner (TR-1.3) — pipeline 8 green: https://gitlab.evdr.internal:8443/evdr/evdr/-/pipelines/8
+- [x] SAST — Semgrep (TR-1.3, SR-4.1) — semgrep.sarif: 0 findings
+- [x] DAST — OWASP ZAP (TR-1.3, SR-4.1) — zap-report.html: 0 H/M/L, 1 INFO (accepted, ci/zap/rules.tsv)
+- [x] Dependency scanning (TR-1.3, SR-4.1) — trivy-deps.json: 0 vulns
+- [x] SBOM generation (TR-1.3, SR-4.1) — sbom-fs.cdx.json + sbom-image.cdx/spdx.json
+- [x] Trivy container image scanning in CI with vulnerability alerting and patch SLA (SR-4.4) — trivy-image.json gate passes; SLA in docs/security/vulnerability-management.md
 
 **Contracts**
 
@@ -66,8 +66,8 @@
 ### Exit Criteria
 
 - [ ] Threat model reviewed and signed off by security; scheduled for per-phase update (SR-4.3)
-- [ ] IaC baseline reproducible — full tear-down/rebuild of K3s + Vault + Traefik from code via documented runbook
-- [ ] CI/CD pipeline green against a sample service with SAST, DAST, dependency scan, and SBOM stages all reporting
+- [ ] IaC baseline reproducible — full tear-down/rebuild of K3s + Vault + Traefik from code via documented runbook (drill pending; initial build executed on k3d lab after WSL2/libvirt instability — see docs/ADR/0002)
+- [x] CI/CD pipeline green against a sample service with SAST, DAST, dependency scan, and SBOM stages all reporting — pipeline 8 (commit 4b24dddd) fully green incl. manual deploy + DAST; evidence per runbook §8
 - [x] Room SPI contract v0.1 frozen for Phase 1 implementation — `ContractVersion = "0.1.0"` in `src/spi/interface.go`; change policy in `src/spi/README.md`
 - [x] DRM strategy decision recorded as ADR — `docs/ADR/0001-drm-strategy-view-first.md`
 - [ ] Data classification and retention model approved
