@@ -425,6 +425,7 @@
 
 Run continuously; do not defer to phase boundaries:
 
+- [ ] Re-run sealed Mimosa deep scan at each phase boundary; record scan ID + seal in `docs/security/mimosa-scan-baseline.md` (engine v0.1.0 coverage is structurally partial/inconclusive for this repo — see that doc §3; the git-gate compatibility-policy advisory is expected, not a regression)
 - [ ] Threat model updated per phase (SR-4.3)
 - [ ] **Independent Security Lead review of the threat model before production / first real tenant** — Phase 0 sign-off (2026-08-17) was solo-operator self-approval; binding caveat in `docs/security/threat-model.md` §8
 - [ ] **Data classification model re-review with data owners / compliance counsel before commercial launch** — Phase 0 approval (2026-08-17) was solo-operator self-approval; binding caveat in `docs/security/data-classification-and-retention.md` §7 (P4 launch-gate dependency)
