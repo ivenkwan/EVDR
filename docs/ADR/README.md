@@ -11,7 +11,7 @@ Write an ADR when a decision:
 - selects between credible alternatives where reasonable engineers would disagree,
 - freezes or changes a cross-team contract (e.g. the Room SPI).
 
-Do **not** write ADRs for routine implementation choices that follow existing conventions in `CLAUDE.md`.
+Do **not** write ADRs for routine implementation choices that follow existing conventions in `AGENTS.md`.
 
 ## Format and lifecycle
 

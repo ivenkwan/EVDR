@@ -20,5 +20,5 @@
 //     (FR-3.1/TR-4.1). Bulk export exists only as ExportRoom, which is an
 //     audited, policy-gated operation.
 //
-// This package is listed in CLAUDE.md §13 as a protected path.
+// This package is listed in AGENTS.md §13 as a protected path.
 package spi

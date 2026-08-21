@@ -31,7 +31,7 @@ Risk scale: **L**ikelihood and **I**mpact each rated Low/Medium/High; residual r
    (privileged, heavily audited)
 ```
 
-Data classifications handled here: see `docs/security/data-classification-and-retention.md`. Encryption/key architecture: see `CLAUDE.md` §12 and SR-1.x.
+Data classifications handled here: see `docs/security/data-classification-and-retention.md`. Encryption/key architecture: see `AGENTS.md` §12 and SR-1.x.
 
 ## 3. Actors
 

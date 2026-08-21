@@ -105,7 +105,7 @@ Both adapters must pass the shared SPI conformance test suite in CI on every mer
 
 ```
 evdr/
-├── CLAUDE.md                     ← you are here
+├── AGENTS.md                     ← you are here
 ├── README.md
 ├── Todo.md                       ← phase checklist with FR/TR/SR traceability
 ├── Requirements/

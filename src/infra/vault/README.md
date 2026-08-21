@@ -34,4 +34,4 @@ Tenant KEKs live under `transit/keys/tenant-<TENANT_ID>`. The template policy `p
 
 - Vault address and tokens come from the environment (`VAULT_ADDR`, `VAULT_TOKEN`), never literals — `bootstrap-vault.sh` refuses to run without them.
 - The audit device must be the first thing enabled after init; if `vault audit list` is ever empty in a running environment, treat it as a security incident (threat model T-15/T-16).
-- No manual Vault changes in production — engines and policies are applied via the bootstrap script / provisioner code (CLAUDE.md §7 infrastructure rule).
+- No manual Vault changes in production — engines and policies are applied via the bootstrap script / provisioner code (AGENTS.md §7 infrastructure rule).

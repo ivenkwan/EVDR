@@ -46,7 +46,7 @@ type Actor struct {
 
 // TenantContext carries the server-established tenant and actor for one call.
 // Adapters use it for storage scoping and for the tenant_id carried by every
-// downstream record and event (CLAUDE.md multi-tenancy rules).
+// downstream record and event (AGENTS.md multi-tenancy rules).
 type TenantContext struct {
 	TenantID TenantID
 	Actor    Actor

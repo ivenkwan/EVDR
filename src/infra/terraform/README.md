@@ -61,6 +61,6 @@ terraform apply -var-file=terraform.tfvars
 
 ## Rules
 
-- All infrastructure changes in production go through Terraform or Helm (`CLAUDE.md` §7). No manual console changes.
+- All infrastructure changes in production go through Terraform or Helm (`AGENTS.md` §7). No manual console changes.
 - No secrets in `.tf` files or tfvars committed to git — tfvars with sensitive values are git-ignored; CI injects them via masked variables.
 - Pin provider versions in each module's `versions.tf`; upgrades are deliberate PRs, not floating.

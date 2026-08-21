@@ -1,6 +1,6 @@
 # Room SPI — Contract v0.1 (FROZEN for Phase 1)
 
-The Room SPI is the single storage-abstraction contract for EVDR (TR-2.1). Every upstream service — portal, secure viewer, policy engine, AI services — programs against `RoomSPI`. No service touches Nextcloud, Ceph RGW/S3, PostgreSQL, or any storage backend directly (hard rule, `CLAUDE.md` §6).
+The Room SPI is the single storage-abstraction contract for EVDR (TR-2.1). Every upstream service — portal, secure viewer, policy engine, AI services — programs against `RoomSPI`. No service touches Nextcloud, Ceph RGW/S3, PostgreSQL, or any storage backend directly (hard rule, `AGENTS.md` §6).
 
 | Adapter | Tiers | Backend | Phase |
 |---|---|---|---|
@@ -22,7 +22,7 @@ Both adapters must pass the shared **SPI conformance suite** (TR-2.4, built in P
 
 ### Tenancy (non-negotiable)
 
-- `TenantContext` is constructed **only** by the calling service's auth layer from verified JWT/session claims. Tenant identity is never read from client-supplied parameters (SR-2.2; `CLAUDE.md` hard rule).
+- `TenantContext` is constructed **only** by the calling service's auth layer from verified JWT/session claims. Tenant identity is never read from client-supplied parameters (SR-2.2; `AGENTS.md` hard rule).
 - Adapters scope every storage operation to `TenantContext.TenantID`. A call whose context tenant does not match the resource's tenant must behave as *not found* (`ErrRoomNotFound`/`ErrDocumentNotFound`), never as *exists but denied*, to avoid cross-tenant existence oracles.
 
 ### Method contracts
@@ -53,7 +53,7 @@ Adapters translate backend failures into the sentinels in `errors.go` (wrapping 
 - `ContractVersion` follows SemVer. **v0.1 is frozen** for Phase 1 implementation.
 - Post-freeze changes require: an ADR, a version bump, simultaneous updates to both adapters, and a green conformance suite — in the same merge.
 - Additive changes (new method/field) = minor bump. Semantics changes = major bump and an explicit migration note for stored data.
-- This path is protected (`CLAUDE.md` §13): PRs touching `src/spi/interface.go` require platform-lead review.
+- This path is protected (`AGENTS.md` §13): PRs touching `src/spi/interface.go` require platform-lead review.
 
 ## What the SPI deliberately does not contain
 

@@ -19,7 +19,7 @@ The smallest real service that proves the CI/CD security gates work end to end (
 
 ## Conventions demonstrated here (copy these, not the functionality)
 
-- Structured logging via the standard library `log/slog` (production Go services use `logrus` per `CLAUDE.md`; this sample deliberately has zero dependencies so the pipeline baseline stays hermetic).
+- Structured logging via the standard library `log/slog` (production Go services use `logrus` per `AGENTS.md`; this sample deliberately has zero dependencies so the pipeline baseline stays hermetic).
 - `http.Server` with explicit timeouts; graceful shutdown on SIGTERM.
 - Security headers set in-service — the edge adds its own, services do not rely on the proxy.
 - Kubernetes: non-root UID 65532, read-only root filesystem, dropped capabilities, no service-account token, resource requests/limits, liveness/readiness probes.

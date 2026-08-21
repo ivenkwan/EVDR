@@ -1,4 +1,4 @@
-# Secrets & environment — NEVER commit (CLAUDE.md hard rule)
+# Secrets & environment — NEVER commit (AGENTS.md hard rule)
 .env
 .env.*
 !.env.example
@@ -65,3 +65,4 @@ Thumbs.db
 
 # Local AI-tooling state (session-specific, never committed)
 .mimosa/
+.zcode/plans/
