@@ -1,0 +1,13 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Native binding fallback build for eslint's TS import resolver (pnpm 11
+# blocks dependency build scripts by default; this one is trusted).
+allowBuilds:
+  unrs-resolver: true
+
+# pnpm 11 "minimum release age" guard: packages newer than the configured age
+# are excluded unless listed here. Entries are auto-managed by pnpm.
+minimumReleaseAgeExclude:
+  - lucide-react@1.35.0
