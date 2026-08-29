@@ -16,7 +16,12 @@
 3. Orchestrator merges branches into `main` in dependency order, runs the
    full verification suite again post-merge, then ticks `Todo.md` activities
    with evidence.
-4. Every merged change must keep Phase 0 gates green: SPI contract frozen
+4. **Todo.md is the live task registry.** Every new task requested by the user
+   is appended to `Todo.md` (with FR/TR/SR traceability where applicable)
+   before or as it is executed. Todo.md is kept current at all times — ticks
+   happen with evidence, new tasks land in the relevant phase or a dedicated
+   section.
+5. Every merged change must keep Phase 0 gates green: SPI contract frozen
    (`ContractVersion = "0.1.0"`), Go module builds, CI semantics preserved.
 
 ## Wave 1 — Phase 1 unblocking workstreams
