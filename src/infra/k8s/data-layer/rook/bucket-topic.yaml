@@ -1,0 +1,23 @@
+# Bucket notification topic (TR-2.5) — Rook CephBucketTopic (v1.19 CRD shape).
+# Namespace: storage (next to the object store). A topic is the delivery endpoint
+# for bucket events; the CephBucketNotification below subscribes a bucket to it.
+#
+# The endpoint is a PLACEHOLDER: Phase 1 will point this at the EVDR webhook emitter /
+# NATS bridge (evdr.{cell}.{tenant}.> event bus, TR-7.1) which fans events out for
+# audit + indexing. Replace the URI before enabling notifications in an environment.
+apiVersion: ceph.rook.io/v1
+kind: CephBucketTopic
+metadata:
+  name: evdr-bucket-events
+  namespace: storage
+spec:
+  objectStoreName: evdr-rgw
+  objectStoreNamespace: storage
+  opaqueData: evdr-bucket-events
+  persistent: false
+  endpoint:
+    http:
+      # CHANGE_ME — Phase 1 event bridge (webhook emitter / NATS gateway).
+      uri: http://evdr-notification-bridge.evdr-system.svc:8080
+      disableVerifySSL: true
+      sendCloudEvents: false

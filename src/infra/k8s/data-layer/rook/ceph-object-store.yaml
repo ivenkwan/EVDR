@@ -1,0 +1,90 @@
+# RGW gateway (TR-2.5) — namespace: storage.
+# Enables the S3 API with SigV2+V4 (RGW default), versioning and lifecycle (native
+# S3 API), and bucket notifications (RGW notifications API + Rook topic/notification CRDs).
+# Replicated pools sized 3 to match a 3-OSD cluster; `bulk` marks the data pool for
+# PG autoscaler pre-creation.
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStore
+metadata:
+  name: evdr-rgw
+  namespace: storage
+spec:
+  metadataPool:
+    failureDomain: host
+    replicated:
+      size: 3
+      requireSafeReplicaSize: true
+    parameters:
+      compression_mode: none
+  dataPool:
+    failureDomain: host
+    replicated:
+      size: 3
+      requireSafeReplicaSize: true
+    parameters:
+      bulk: "true"
+      compression_mode: none
+  # Keep pools and data on store deletion — data safety over convenience.
+  preservePoolsOnDelete: true
+  protocols:
+    # Explicit API surface: S3 + admin (Rook needs it to manage users/buckets) +
+    # notifications. swift/sts/iam/s3website are DISABLED (attack-surface reduction).
+    enableAPIs:
+      - s3
+      - admin
+      - notifications
+  gateway:
+    port: 8080
+    instances: 1
+    placement:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - rook-ceph-rgw
+              topologyKey: kubernetes.io/hostname
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+    priorityClassName: system-cluster-critical
+    # RGW runtime config (SR-2.3 audit trail for object operations):
+    rgwConfig:
+      rgw_enable_ops_log: "true"
+      rgw_ops_log_radius: "10"
+    # Sidecar that tails the RGW ops-log socket (audit stream for SIEM, TR-7.5):
+    opsLogSidecar:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 60Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+  healthCheck:
+    startupProbe:
+      disabled: false
+    readinessProbe:
+      disabled: false
+
+# ----------------------------------------------------------------------------------
+# SSE-KMS (AGENTS.md §12: Ceph SSE-KMS with Vault is the secondary at-rest layer).
+# Staged hardening — requires a Vault token secret + Vault KMS backend wiring first:
+#   security:
+#     kms:
+#       connectionDetails:
+#         KMS_PROVIDER: "vault"
+#         VAULT_ADDR: "https://vault.vault.svc:8200"
+#         VAULT_BACKEND_PATH: "rook"
+#         VAULT_SECRET_ENGINE: "kv"
+#         VAULT_BACKEND: "v2"
+#       tokenSecretName: rook-vault-token
+# ----------------------------------------------------------------------------------

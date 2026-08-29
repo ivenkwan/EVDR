@@ -1,0 +1,27 @@
+# Bucket notification (TR-2.5) — Rook CephBucketNotification (v1.19 CRD shape).
+# Subscribes a bucket (identified via ObjectBucketClaim) to the topic above.
+# Applied per-bucket by the tenant provisioner in Phase 1; this file documents the
+# canonical shape: upload/delete + lifecycle events, prefix-filtered.
+#
+# NOTE: with the `filter` present, only objects matching ALL filters emit events.
+# A notification WITHOUT `filter` matches every object — the common baseline.
+apiVersion: ceph.rook.io/v1
+kind: CephBucketNotification
+metadata:
+  name: evdr-bucket-events
+  namespace: storage
+spec:
+  topic: evdr-bucket-events
+  # Example filters (audit-focused: only the document tree):
+  filter:
+    keyFilters:
+      - name: prefix
+        value: documents/
+  events:
+    - s3:ObjectCreated:Put
+    - s3:ObjectCreated:Copy
+    - s3:ObjectCreated:CompleteMultipartUpload
+    - s3:ObjectRemoved:Delete
+    - s3:ObjectLifecycle:Expiration:Current
+    - s3:ObjectLifecycle:Expiration:NonCurrent
+    - s3:ObjectLifecycle:Expiration:DeleteMarker

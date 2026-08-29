@@ -1,0 +1,116 @@
+# CephCluster (TR-2.5) — Rook 1.19.10 / Ceph Squid v19.2.6, namespace: storage.
+# Adapted from upstream deploy/examples/cluster.yaml + cluster-on-pvc.yaml guidance.
+# See rook/README.md for the full rationale on every deviation.
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: rook-ceph
+  namespace: storage
+spec:
+  cephVersion:
+    # Squid v19.2.6, digest-pinned (multi-arch manifest):
+    #   sha256:0e13b880267f0f0b19b2f69b6046d8c39b99bc306c80522480bbe729b588d3fe
+    image: quay.io/ceph/ceph:v19.2.6@sha256:0e13b880267f0f0b19b2f69b6046d8c39b99bc306c80522480bbe729b588d3fe
+    allowUnsupported: false
+  # Host path for Ceph daemon config/state (mons, mgr, crash). Data lives on OSDs.
+  dataDirHostPath: /var/lib/rook
+  skipUpgradeChecks: false
+  continueUpgradeAfterChecksEvenIfNotHealthy: false
+  waitTimeoutForHealthyOSDInMinutes: 10
+  upgradeOSDRequiresHealthyPGs: false
+  mon:
+    count: 3
+    # Phase 1 lab baseline is a single node; production cells (>=3 nodes) MUST set
+    # this to false so mons spread across nodes (Rook's own recommendation).
+    allowMultiplePerNode: true
+  mgr:
+    count: 2
+    allowMultiplePerNode: true
+    modules:
+      - name: rook
+        enabled: false # mgr 'rook' module disabled (upstream default)
+  dashboard:
+    enabled: true
+    ssl: true
+    # No ingress: operator-only access via kubectl port-forward (or disable entirely).
+  monitoring:
+    enabled: false # Prometheus/Grafana wiring arrives with TR-11.1
+    metricsDisabled: false
+    exporter:
+      perfCountersPrioLimit: 5
+      statsPeriodSeconds: 5
+  network:
+    connections:
+      # Wire encryption (msgr2 TLS) staged with the data-plane certificate pass.
+      encryption:
+        enabled: false
+      compression:
+        enabled: false
+      # msgr2-only: disables legacy v1 port 6789. All clients (ceph-csi, RGW) speak
+      # v2 on kernel 7.0 hosts.
+      requireMsgr2: true
+  crashCollector:
+    disable: false
+  logCollector:
+    enabled: true
+    periodicity: daily
+    maxLogSize: 500M
+  cleanupPolicy:
+    # Safe default: no automated data destruction on cluster deletion.
+    confirmation: ""
+    sanitizeDisks:
+      method: quick
+      dataSource: zero
+      iteration: 1
+    allowUninstallWithVolumes: false
+  removeOSDsIfOutAndSafeToRemove: false
+  priorityClassNames:
+    mon: system-node-critical
+    osd: system-node-critical
+    mgr: system-cluster-critical
+  security:
+    cephx:
+      # Kernel 7.0+ hosts (production baseline and lab run 7.0.0): use AES256-KEKs and
+      # omit the `keyType: aes` override — per the guidance embedded in upstream 1.19.
+      allowedCiphers:
+        - aes256k
+  storage:
+    useAllNodes: true
+    useAllDevices: false
+    # Raw-device OSDs (upstream production pattern). Filter EXCLUDES the system disk:
+    #   libvirt VMs:  ^vd[b-z]   (vda = OS)
+    #   bare metal:   ^sd[b-z]
+    #   NVMe:         ^nvme[0-9]n[0-9]
+    # OPERATORS: confirm device naming per environment and attach dedicated data disks.
+    # Cloud/managed-K8s alternative: storageClassDeviceSets (upstream cluster-on-pvc.yaml).
+    deviceFilter: "^vd[b-z]"
+    config:
+      osdsPerDevice: "1"
+    allowDeviceClassUpdate: false
+    allowOsdCrushWeightUpdate: false
+    onlyApplyOSDPlacement: false
+  disruptionManagement:
+    managePodBudgets: true
+    osdMaintenanceTimeout: 30
+  healthCheck:
+    daemonHealth:
+      mon:
+        disabled: false
+        interval: 45s
+      osd:
+        disabled: false
+        interval: 60s
+      status:
+        disabled: false
+        interval: 60s
+    livenessProbe:
+      mon: { disabled: false }
+      mgr: { disabled: false }
+      osd: { disabled: false }
+    startupProbe:
+      mon: { disabled: false }
+      mgr: { disabled: false }
+      osd: { disabled: false }
+  csi:
+    readAffinity:
+      enabled: false

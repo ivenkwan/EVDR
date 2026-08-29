@@ -1,0 +1,21 @@
+# S3 service user for EVDR platform workloads (TR-2.5) — namespace: storage.
+#
+# NO credentials live in this manifest: Rook generates access_key/secret_key into the
+# K8s Secret `rook-ceph-object-user-evdr-rgw-evdr-s3` in this namespace. The operator
+# step mirrors them into Vault at secret/evdr/services/ceph-rgw (Phase 0 pattern) so
+# consumers read Vault, never the K8s secret directly.
+#
+# Least privilege: no `capabilities` are granted — the user gets the RGW default scope
+# (full access to its own buckets). Per-tenant users are created by the tenant
+# provisioner (Phase 1 app work) with per-tenant quotas instead.
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStoreUser
+metadata:
+  name: evdr-s3
+  namespace: storage
+spec:
+  store: evdr-rgw
+  displayName: "EVDR S3 service user (NativeAdapter)"
+  # quotas: set per environment, e.g.
+  #   maxBuckets: 100
+  #   maxSize: 10G
