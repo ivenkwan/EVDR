@@ -1,0 +1,21 @@
+# Headless Service for PostgreSQL (TR-2.11). clusterIP: None gives stable DNS
+# (postgres.evdr-system.svc) resolving to pod IPs — the basis for a future
+# read-replica set and for consumers that should not rely on a VIP.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: evdr
+    app.kubernetes.io/component: database
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      protocol: TCP

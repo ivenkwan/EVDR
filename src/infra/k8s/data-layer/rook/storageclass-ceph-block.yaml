@@ -1,0 +1,24 @@
+# StorageClass for Postgres/Redis PVCs (TR-2.11/2.12) — csi-rbd backed by the
+# evdr-block pool. The provisioner and secret names derive from the operator
+# namespace (`storage`): CSI_DRIVER_NAME_PREFIX defaults to the operator namespace,
+# and Rook creates the rook-csi-rbd-provisioner / rook-csi-rbd-node secrets here.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ceph-block
+provisioner: storage.rbd.csi.ceph.com
+parameters:
+  clusterID: storage                    # namespace of the CephCluster CR
+  pool: evdr-block
+  imageFeatures: layering
+  csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: storage
+  csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/controller-expand-secret-namespace: storage
+  csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+  csi.storage.k8s.io/node-stage-secret-namespace: storage
+  csi.storage.k8s.io/fstype: ext4
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+# First consumer wins: RBD images are scheduled near the pod (single-site Phase 1).
+volumeBindingMode: WaitForFirstConsumer

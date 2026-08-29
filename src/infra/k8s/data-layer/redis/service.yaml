@@ -1,0 +1,20 @@
+# Headless Service for Redis (TR-2.12). clusterIP: None — consumers resolve
+# redis.evdr-system.svc to pod IPs; the cache does not need a VIP.
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: evdr
+    app.kubernetes.io/component: cache
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      protocol: TCP

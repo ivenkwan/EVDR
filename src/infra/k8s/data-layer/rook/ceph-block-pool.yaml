@@ -1,0 +1,16 @@
+# Block pool backing the ceph-block StorageClass (glue for TR-2.11/2.12 PVCs).
+# Postgres and Redis volumes are RBD images in this pool. Application label is
+# managed by Rook/ceph-csi automatically — not set here.
+apiVersion: ceph.rook.io/v1
+kind: CephBlockPool
+metadata:
+  name: evdr-block
+  namespace: storage
+spec:
+  failureDomain: host
+  replicated:
+    size: 3
+    requireSafeReplicaSize: true
+  parameters:
+    compression_mode: none
+  # statusCheck / mirroring deliberately absent — Phase 1 single-site.

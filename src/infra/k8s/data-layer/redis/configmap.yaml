@@ -1,0 +1,38 @@
+# Redis 7 configuration baseline (TR-2.12) — evdr-system.
+# Mounted read-only at /usr/local/etc/redis/redis.conf.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: evdr
+    app.kubernetes.io/component: cache
+data:
+  redis.conf: |
+    # --- network ---
+    # Stock image default binds 127.0.0.1 only; the cluster overlay requires all
+    # interfaces. Auth via ACL file is the boundary (see secret.yaml).
+    bind 0.0.0.0
+    # protected-mode only applies when NO password/auth is configured; kept explicit
+    # as defense-in-depth if the ACL file is ever emptied.
+    protected-mode yes
+    port 6379
+
+    # --- persistence (StatefulSet-backed AOF) ---
+    appendonly yes
+    appendfilename "appendonly.aof"
+    appendfsync everysec
+    dir /data
+    # RDB snapshots disabled: AOF is the single, deterministic persistence path.
+    save ""
+
+    # --- memory policy ---
+    # noeviction: eviction could silently drop session tokens or Nextcloud lock keys.
+    # A dedicated cache-only instance may use allkeys-lru instead.
+    maxmemory-policy noeviction
+
+    # --- misc ---
+    # Log to stdout (collected by the logging pipeline, TR-7.5).
+    logfile ""
