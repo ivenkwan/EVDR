@@ -1,0 +1,48 @@
+# Persistent storage for Nextcloud (TR-2.13).
+#
+# storageClassName: rook-ceph-block is the WORKSTREAM-B CONTRACT — Rook/Ceph
+# provides the cluster's storage classes in Phase 1 (TR-2.5, workstream B;
+# the k3s baseline disables local-storage). Reconcile the class name with
+# workstream B at merge; replace with the actual Rook StorageClass name if
+# it differs.
+#
+# Volumes:
+#   nextcloud-html  — application + config (/var/www/html): persists occ
+#                     app installs/upgrades and config.php.
+#   nextcloud-data  — user file data (/var/www/data): the document corpus.
+#                     Backed up per the strategy in README §6; object-storage
+#                     offload (Ceph RGW primary store, AGENTS.md stack) is a
+#                     follow-up.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nextcloud-html
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: nextcloud
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/part-of: evdr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nextcloud-data
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: nextcloud
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/part-of: evdr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 20Gi

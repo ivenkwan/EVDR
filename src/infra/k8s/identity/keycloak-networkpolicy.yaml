@@ -1,0 +1,47 @@
+# Keycloak NetworkPolicy (additive on top of src/infra/network/network-policies.yaml
+# baseline for evdr-system: default-deny-all + allow-evdr-system-baseline).
+#
+# Effective allow-set for keycloak pods:
+#   Ingress: Traefik edge (namespaceSelector) + same-namespace peers (SPI
+#            services, Nextcloud OIDC discovery) on 8080.
+#   Egress:  PostgreSQL 16 in the storage namespace (:5432) — the baseline
+#            already provides kube-dns, Vault (:8200), K8s API and
+#            intra-namespace egress, so only the storage delta is declared here.
+#
+# NOTE: NetworkPolicies are additive — the evdr-system baseline's
+# "ingress from traefik" rule already matches every pod in the namespace;
+# this policy narrows nothing the baseline grants, it only adds the
+# component's explicit peers (defense-in-depth + intent documentation).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: evdr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        # SSO entry: only the Traefik edge namespace may drive browser traffic.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+        # In-cluster peers (Nextcloud OIDC, future SPI/portal services).
+        - podSelector: {}
+      ports:
+        - port: 8080
+          protocol: TCP
+  egress:
+    - to:
+        # PostgreSQL 16 — shared data layer (workstream B).
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: storage
+      ports:
+        - port: 5432
+          protocol: TCP

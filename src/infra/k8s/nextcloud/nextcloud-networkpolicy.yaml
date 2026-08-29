@@ -1,0 +1,51 @@
+# Nextcloud NetworkPolicy — network separation from external-facing services
+# (TR-2.13). Additive on top of src/infra/network/network-policies.yaml
+# (evdr-system: default-deny-all + allow-evdr-system-baseline).
+#
+# Effective allow-set for nextcloud pods:
+#   Ingress: SAME-NAMESPACE pods only on 8080 — i.e. the Room SPI services
+#            and adjacent platform services in evdr-system. No edge namespace,
+#            no other namespaces.
+#   Egress:  PostgreSQL 16 (:5432) + Redis 7 (:6379) in the storage namespace
+#            (the baseline already provides kube-dns, Vault, K8s API and
+#            intra-namespace egress, so only the storage delta is declared).
+#
+# KNOWN GAP (documented, see README §7): the namespace baseline
+# allow-evdr-system-baseline grants the traefik namespace ingress to EVERY
+# pod in evdr-system, and NetworkPolicies are additive — so traefik can still
+# reach Nextcloud at L3/L4 today. Real separation comes from the absence of
+# any Nextcloud edge route (no IngressRoute exists) plus this policy. Closing
+# the L3/L4 gap requires narrowing the evdr-system baseline (podSelector on
+# allow-evdr-system-baseline) — owned by src/infra/network/, tracked as a
+# follow-up for the orchestrator/apply wave.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nextcloud
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: nextcloud
+    app.kubernetes.io/part-of: evdr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: nextcloud
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        # Room SPI / platform services in the same namespace only.
+        - podSelector: {}
+      ports:
+        - port: 8080
+          protocol: TCP
+  egress:
+    - to:
+        # PostgreSQL 16 + Redis 7 — shared data layer (workstream B).
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: storage
+      ports:
+        - port: 5432
+          protocol: TCP
+        - port: 6379
+          protocol: TCP

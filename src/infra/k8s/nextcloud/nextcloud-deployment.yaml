@@ -1,0 +1,199 @@
+# Hardened Nextcloud Deployment — EVDR document storage (TR-2.13)
+# Namespace: evdr-system (owned by src/infra/network/namespaces.yaml)
+#
+# Hardening posture (TR-2.13): TLS (cert-manager/Vault PKI), PostgreSQL 16
+# backend, Redis 7 file locking, network separation from external-facing
+# services (no edge route by default; NetworkPolicy restricts peers),
+# non-root execution under the restricted Pod Security Standard.
+#
+# Data layer contract (workstream B): postgresql.storage.svc:5432,
+# redis.storage.svc:6379 — see README.md §2.
+#
+# Secrets: referenced by name (nextcloud-secrets), provisioned from Vault —
+# see README.md §6. No credentials are hardcoded here.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: nextcloud
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/part-of: evdr
+    evdr.io/scope: application
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nextcloud
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nextcloud
+        app.kubernetes.io/component: storage
+        app.kubernetes.io/part-of: evdr
+      annotations:
+        # Vault Agent sidecar injector — preferred at scale (see README §6).
+        # vault.hashicorp.com/agent-inject: "true"
+        # vault.hashicorp.com/role: nextcloud
+        # vault.hashicorp.com/agent-inject-secret-db: secret/evdr/services/nextcloud/db
+        # vault.hashicorp.com/agent-inject-secret-oidc: secret/evdr/services/nextcloud/oidc
+    spec:
+      serviceAccountName: nextcloud
+      # evdr-system enforces Pod Security "restricted" (namespaces.yaml).
+      # The official nextcloud image (apache variant) runs its runtime as
+      # www-data (uid 33); apache binds :80 via NET_BIND_SERVICE.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 33
+        runAsGroup: 33
+        fsGroup: 33             # PVCs (html/data) writable by www-data
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nextcloud
+          image: docker.io/library/nextcloud:34.0.3-apache
+          imagePullPolicy: IfNotPresent
+          env:
+            # --- PostgreSQL 16 backend (shared data layer, workstream B) ---
+            - name: POSTGRES_HOST
+              value: postgresql.storage.svc
+            - name: POSTGRES_DB
+              value: nextcloud
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-secrets
+                  key: POSTGRES_PASSWORD
+            # --- Redis 7: distributed cache + FILE LOCKING (TR-2.13) ---
+            # The official image writes memcache.distributed and
+            # memcache.locking from these (Redis file locking, TR-2.12).
+            - name: REDIS_HOST
+              value: redis.storage.svc
+            - name: REDIS_HOST_PORT
+              value: "6379"
+            - name: REDIS_HOST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-secrets
+                  key: REDIS_HOST_PASSWORD
+                  optional: true   # empty ACL-less Redis on Tier 0 lab
+            # --- instance identity ---
+            - name: NEXTCLOUD_TRUSTED_DOMAINS
+              value: "nextcloud.evdr.internal nextcloud.evdr-system.svc nextcloud"
+            - name: OVERWRITEPROTOCOL
+              value: https        # URL generation behind the edge
+            - name: TRUSTED_PROXIES
+              value: "10.42.0.0/16"  # pod CIDR (k3d/flannel default) — adjust per environment
+            # --- first-install admin (used only when no config exists yet) ---
+            - name: NEXTCLOUD_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-secrets
+                  key: NEXTCLOUD_ADMIN_USER
+            - name: NEXTCLOUD_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-secrets
+                  key: NEXTCLOUD_ADMIN_PASSWORD
+            # --- SSO to Keycloak via OIDC (TR-6.2) ---
+            # PLACEHOLDER provisioning inputs for the user_oidc app — the
+            # stock image does NOT consume these; the operator/provisioner
+            # runs `occ user_oidc:provider` with them (README §5). Real
+            # values come from Vault (secret/evdr/services/nextcloud/oidc).
+            - name: NEXTCLOUD_OIDC_PROVIDER_URL
+              value: "https://keycloak.evdr.internal/realms/evdr"
+            - name: NEXTCLOUD_OIDC_CLIENT_ID
+              value: "nextcloud"
+            - name: NEXTCLOUD_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-secrets
+                  key: OIDC_CLIENT_SECRET
+                  optional: true
+            - name: NEXTCLOUD_OIDC_SCOPE
+              value: "openid profile email"
+            # --- runtime ---
+            - name: PHP_MEMORY_LIMIT
+              value: 1G
+            - name: NEXTCLOUD_MODE
+              value: production   # (image default; explicit for clarity)
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /status.php
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /status.php
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2048Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false   # entrypoint + PHP need writable
+                                              # /var/www/html + /tmp; rootfs
+                                              # RO is a follow-up (README §8)
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+              # Entrypoint chowns data dirs; apache binds :80. All caps are
+              # within the restricted-PSA allowed set.
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID", "NET_BIND_SERVICE"]
+          volumeMounts:
+            # Application + config (occ upgrades, app writes)
+            - name: html
+              mountPath: /var/www/html
+            # User file data (the VDR document corpus for Tiers 0/2/3)
+            - name: data
+              mountPath: /var/www/data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: html
+          persistentVolumeClaim:
+            claimName: nextcloud-html
+        - name: data
+          persistentVolumeClaim:
+            claimName: nextcloud-data
+        - name: tmp
+          emptyDir: {}
+---
+# ServiceAccount for Nextcloud. Used by the Vault Agent injector (kubernetes
+# auth role `nextcloud`, rendered from evdr-service-template.hcl); no cluster
+# permissions are granted by default.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nextcloud
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: nextcloud
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/part-of: evdr
