@@ -1,0 +1,43 @@
+/*
+ * EVDR design tokens — single source of truth for the shadcn/ui theme.
+ *
+ * Consumed by both apps (apps/portal, apps/admin) via CSS @import in their
+ * globals.css. Each app maps these to Tailwind utilities through its own
+ * `@theme inline` block and may override individual tokens afterwards to
+ * express its own chrome personality.
+ *
+ * Per-room branding (TR-3.2, FR-1.1) will override these CSS custom
+ * properties at runtime — that is why tokens are plain CSS variables and
+ * the Tailwind mapping is `inline` (utilities resolve `var(--primary)`).
+ *
+ * Palette: enterprise navy + slate neutrals (compliance-grade; no "AI"
+ * purple/indigo defaults).
+ */
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+
+  --primary: #1e3a5f;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f1f5f9;
+  --secondary-foreground: #1e293b;
+
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+
+  --accent: #e2e8f0;
+  --accent-foreground: #0f172a;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #1e3a5f;
+
+  --radius: 0.5rem;
+}
