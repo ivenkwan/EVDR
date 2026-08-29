@@ -39,11 +39,13 @@ C → TR-2.13/TR-6.1/TR-6.2 · D → TR-3.1/TR-3.2/TR-3.3/TR-3.4.
 ## Wave 1 status
 
 - [x] Toolchain provisioned: Go 1.27.0 (`~/.local/go`), pnpm 11.24.0 (`~/.local/bin`)
-- [ ] Workstream A merged + verified (NextcloudAdapter + conformance suite)
-- [ ] Workstream B merged + verified (data layer manifests)
-- [ ] Workstream C merged + verified (identity + Nextcloud manifests)
-- [ ] Workstream D merged + verified (portal scaffold)
-- [ ] Todo.md Phase 1 activities ticked with evidence
+- [x] Workstream A merged + verified (NextcloudAdapter + conformance suite) — `go build/vet/test -race` green post-merge
+- [x] Workstream B merged + verified (data layer manifests) — 17/17 offline dry-run
+- [x] Workstream C merged + verified (identity + Nextcloud manifests) — 13/13 offline dry-run
+- [x] Workstream D merged + verified (portal scaffold) — `pnpm build` green, both apps
+- [x] Todo.md Phase 1 activities ticked with evidence; Wave 2 tasks appended
+
+> **Wave 1 verified by orchestrator:** all gates re-run post-merge (fresh `-count=1`), zero out-of-partition files, remote SHAs confirmed. Wave 2 = lab apply + CI wiring (k3d lab required).
 
 ## Out of scope (this deployment)
 

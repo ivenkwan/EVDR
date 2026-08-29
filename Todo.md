@@ -89,30 +89,30 @@
 
 **Data & Storage Layer**
 
-- [ ] Deploy Ceph RGW via Rook operator — S3 API, SigV2+V4, versioning, lifecycle, bucket notifications (TR-2.5)
-- [ ] Deploy PostgreSQL 16 (TR-2.11)
-- [ ] Deploy Redis 7 (TR-2.12)
-- [ ] Deploy hardened Nextcloud: TLS, Postgres backend, Redis file locking, backup strategy, network-separated from external-facing services (TR-2.13)
+- [ ] Deploy Ceph RGW via Rook operator — S3 API, SigV2+V4, versioning, lifecycle, bucket notifications (TR-2.5) — Wave 1: manifests ready + offline-validated (src/infra/k8s/data-layer/rook/); lab apply → Wave 2
+- [ ] Deploy PostgreSQL 16 (TR-2.11) — Wave 1: manifests ready + offline-validated (src/infra/k8s/data-layer/postgresql/); lab apply → Wave 2
+- [ ] Deploy Redis 7 (TR-2.12) — Wave 1: manifests ready + offline-validated (src/infra/k8s/data-layer/redis/); lab apply → Wave 2
+- [ ] Deploy hardened Nextcloud: TLS, Postgres backend, Redis file locking, backup strategy, network-separated from external-facing services (TR-2.13) — Wave 1: manifests ready + offline-validated (src/infra/k8s/nextcloud/); lab apply → Wave 2
 
 **Room SPI & Adapter**
 
-- [ ] Implement Room SPI as Go interface (TR-2.1)
-- [ ] Implement NextcloudAdapter wrapping OCS/WebDAV APIs (TR-2.2)
-- [ ] Build SPI conformance suite; run against adapter in CI on every merge (TR-2.4)
+- [x] Implement Room SPI as Go interface (TR-2.1) — NextcloudAdapter + in-memory reference adapter implement frozen contract v0.1.0 (Wave 1, 20a97c2)
+- [x] Implement NextcloudAdapter wrapping OCS/WebDAV APIs (TR-2.2) — src/spi/adapters/nextcloud/ (OCS shares + WebDAV), httptest-mocked coverage (Wave 1, 20a97c2)
+- [x] Build SPI conformance suite; run against adapter in CI on every merge (TR-2.4) — src/spi/conformance/ green under `go test -race`; GitLab CI wiring is a Wave 2 task
 
 **Identity & Access**
 
-- [ ] Deploy Keycloak; federate SAML 2.0 / OIDC with enterprise AD/LDAP for internal users (FR-4.1, TR-6.1)
-- [ ] Connect Nextcloud to Keycloak as SSO provider (TR-6.2)
+- [ ] Deploy Keycloak; federate SAML 2.0 / OIDC with enterprise AD/LDAP for internal users (FR-4.1, TR-6.1) — Wave 1: manifests ready + offline-validated (src/infra/k8s/identity/, starter realm incl. TOTP/WebAuthn 2FA policies); lab apply → Wave 2
+- [ ] Connect Nextcloud to Keycloak as SSO provider (TR-6.2) — Wave 1: OIDC placeholder wiring in manifests; apply + smoke test pending lab (Wave 2)
 - [ ] MFA for internal users: TOTP + WebAuthn/FIDO2 (FR-4.2)
 - [ ] External guest access: expiring secure links with password or one-time OTP — no account creation (FR-4.3, TR-6.3)
 
 **External Portal (Frontend)**
 
-- [ ] Next.js 15 external portal — App Router, TypeScript, SSR for branded room pages (TR-3.1)
-- [ ] shadcn/ui + Tailwind CSS owned-component baseline for rapid per-room theming (TR-3.2)
-- [ ] Zustand client state + TanStack Query server state against API gateway (TR-3.3)
-- [ ] Separate external portal vs admin console apps with distinct navigation and access models (FR-4.7, TR-3.4)
+- [x] Next.js 15 external portal — App Router, TypeScript, SSR for branded room pages (TR-3.1) — scaffold baseline apps/portal (Wave 1, f20978e); branded SSR room pages → later wave
+- [x] shadcn/ui + Tailwind CSS owned-component baseline for rapid per-room theming (TR-3.2) — packages/ui (button/card + EVDR theme tokens, Wave 1, f20978e)
+- [x] Zustand client state + TanStack Query server state against API gateway (TR-3.3) — wired as baseline in both apps (Wave 1, f20978e); API gateway contract pending (later wave)
+- [x] Separate external portal vs admin console apps with distinct navigation and access models (FR-4.7, TR-3.4) — apps/portal + apps/admin, distinct routing shells (Wave 1, f20978e)
 - [ ] Branded rooms: custom logo, colour theme, metadata, About page, counterparty-specific branding (FR-1.1)
 
 **Rooms & Documents**
@@ -464,3 +464,13 @@ All eight must be verifiable before external commercial launch (FTRS Section 13)
 - [ ] 6. Break-glass transparency features demonstrated to ≥ 2 prospect security teams
 - [ ] 7. Per-tenant SIEM forwarding operational for ≥ 3 tenant-configured destinations
 - [ ] 8. AI consent switch enforced with audit evidence for ≥ 2 tenant configurations
+
+---
+
+## Wave 2 — Lab apply, CI wiring & integration (added 2026-08-29, harness Wave 1 outcome)
+
+Tasks surfaced by Wave 1 delivery: apply-wave work that requires the k3d lab back online, plus the CI gate wiring the conformance suite needs.
+
+- [ ] Apply data-layer manifests to k3d lab: Ceph Rook RGW, PostgreSQL 16, Redis 7 (TR-2.5/2.11/2.12) — manifests at src/infra/k8s/data-layer/
+- [ ] Apply identity + storage manifests to k3d lab: Keycloak realm bootstrap, hardened Nextcloud, SSO connect (TR-2.13/6.1/6.2, FR-4.1/4.2) — manifests at src/infra/k8s/identity/, src/infra/k8s/nextcloud/
+- [ ] Wire SPI conformance suite into GitLab CI merge gate (TR-2.4) — suite at src/spi/conformance/, currently passing locally only
