@@ -1,0 +1,29 @@
+# Keycloak serving certificate — issued by cert-manager from the Vault-backed
+# cluster issuer (src/infra/cert-manager/cluster-issuer-vault.yaml), consumed
+# by the Traefik IngressRoute (TLS termination) and mounted into the pod for
+# the optional direct-HTTPS mode (see README §3).
+#
+# Conventions follow src/infra/cert-manager/vault-certificate.yaml and
+# traefik/crds/default-certificate.yaml: CN-less, byte-sorted SANs, ECDSA
+# P-256, duration == the evdr-internal Vault role TTL (720h) to avoid the
+# reissue hot loop, renew at 2/3 lifetime.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: keycloak-tls
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: evdr
+spec:
+  secretName: keycloak-tls
+  dnsNames:
+    - keycloak.evdr.internal
+  duration: 720h
+  renewBefore: 240h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: vault-pki-issuer
+    kind: ClusterIssuer

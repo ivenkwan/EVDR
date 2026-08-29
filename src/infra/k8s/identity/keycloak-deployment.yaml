@@ -1,0 +1,205 @@
+# Keycloak Deployment — EVDR identity plane (TR-6.1)
+# Namespace: evdr-system (owned by src/infra/network/namespaces.yaml)
+#
+# Image: quay.io/keycloak/keycloak:26.7.2 (26.x line, pinned; bumps are
+# deliberate PRs per the repo's version policy).
+#
+# Secrets: referenced by name (keycloak-secrets), provisioned from Vault —
+# see README.md §6. No credentials are hardcoded here.
+#
+# Data layer: PostgreSQL 16 via the shared data layer (workstream B),
+# service contract postgresql.storage.svc:5432 — see README.md §2.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/component: identity
+    app.kubernetes.io/part-of: evdr
+    evdr.io/scope: application
+spec:
+  # Tier 0: single replica (KC_CACHE=local). HA (3 replicas, ispn cache +
+  # JGroups discovery) is a Tier 1+ follow-up — see README.md left-outs.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: keycloak
+        app.kubernetes.io/component: identity
+        app.kubernetes.io/part-of: evdr
+      annotations:
+        # Vault Agent sidecar injector — preferred at scale (see README §6).
+        # Enabled here as commented-out annotations; uncomment once the
+        # keycloak ServiceAccount has a Kubernetes-auth Vault role
+        # (rendered evdr-service-keycloak policy, evdr-service-template.hcl).
+        # vault.hashicorp.com/agent-inject: "true"
+        # vault.hashicorp.com/role: keycloak
+        # vault.hashicorp.com/agent-inject-secret-admin: secret/evdr/services/keycloak/admin
+        # vault.hashicorp.com/agent-inject-template-admin: |
+        #   {{- with secret "secret/data/evdr/services/keycloak/admin" -}}
+        #   KC_BOOTSTRAP_ADMIN_USERNAME={{ .Data.data.KC_BOOTSTRAP_ADMIN_USERNAME }}
+        #   KC_BOOTSTRAP_ADMIN_PASSWORD={{ .Data.data.KC_BOOTSTRAP_ADMIN_PASSWORD }}
+        #   {{- end }}
+    spec:
+      serviceAccountName: keycloak
+      # evdr-system enforces Pod Security "restricted" (namespaces.yaml).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000        # quay.io/keycloak/keycloak default uid
+        runAsGroup: 1000
+        fsGroup: 1000          # emptyDir data dirs writable by the Keycloak user
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.7.2
+          imagePullPolicy: IfNotPresent
+          args: ["start"]      # production mode; NOT start-dev
+          env:
+            # --- bootstrap admin (master realm) ---
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secrets
+                  key: KC_BOOTSTRAP_ADMIN_USERNAME
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secrets
+                  key: KC_BOOTSTRAP_ADMIN_PASSWORD
+            # --- database (shared data layer, workstream B) ---
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: jdbc:postgresql://postgresql.storage.svc:5432/keycloak
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secrets
+                  key: KC_DB_USERNAME
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secrets
+                  key: KC_DB_PASSWORD
+            # --- hostname / proxy (TLS terminated at Traefik edge) ---
+            - name: KC_HOSTNAME
+              value: https://keycloak.evdr.internal
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HTTP_PORT
+              value: "8080"
+            # TLS directly on Keycloak is OFF by default (edge termination).
+            # To enable end-to-end TLS set KC_HTTPS_ENABLED=true,
+            # KC_HTTPS_CERTIFICATE_FILE=/etc/keycloak/tls/tls.crt,
+            # KC_HTTPS_CERTIFICATE_KEY_FILE=/etc/keycloak/tls/tls.key
+            # (cert secret is mounted below).
+            - name: KC_HTTPS_ENABLED
+              value: "false"
+            # --- runtime ---
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_METRICS_ENABLED
+              value: "false"
+            - name: KC_CACHE
+              value: local          # Tier 0 single replica (see left-outs)
+            - name: KC_LOG_LEVEL
+              value: INFO
+            - name: KC_DB_SCHEMA_PUBLIC
+              value: "true"
+            - name: JAVA_OPTS_APPEND
+              value: "-Xms256m -Xmx1024m -XX:MaxRAMPercentage=75.0"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          # KC 26 health endpoints (/health/live, /health/ready) — requires
+          # KC_HEALTH_ENABLED=true (set above).
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1536Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+              # Keycloak binds 8080 (non-privileged); no extra caps needed,
+              # but NET_BIND_SERVICE is kept for the optional 8443 HTTPS port.
+              add: ["NET_BIND_SERVICE"]
+          volumeMounts:
+            # Realm auto-import: any *.json in /opt/keycloak/data/import is
+            # imported on first boot (starter realm, TR-6.1 prep).
+            - name: realm-import
+              mountPath: /opt/keycloak/data/import/evdr-realm.json
+              subPath: evdr-realm.json
+              readOnly: true
+            # TLS secret (issued by cert-manager from vault-pki-issuer).
+            # Used only if KC_HTTPS_ENABLED is flipped on (see env above).
+            - name: tls
+              mountPath: /etc/keycloak/tls
+              readOnly: true
+            # With readOnlyRootFilesystem the runtime needs writable scratch.
+            - name: data
+              mountPath: /opt/keycloak/data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: realm-import
+          configMap:
+            name: evdr-realm-bootstrap
+            defaultMode: 0444
+        - name: tls
+          secret:
+            secretName: keycloak-tls
+            defaultMode: 0444
+        # Ephemeral runtime scratch — durable state lives in PostgreSQL.
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+# ServiceAccount for Keycloak. Used by the Vault Agent injector (kubernetes
+# auth role `keycloak`, rendered from evdr-service-template.hcl) and by RBAC
+# as needed; no cluster permissions are granted by default.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/component: identity
+    app.kubernetes.io/part-of: evdr

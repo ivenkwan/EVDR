@@ -1,0 +1,32 @@
+# Nextcloud TLS certificate — issued by cert-manager from the Vault-backed
+# cluster issuer (TR-2.13 TLS requirement).
+#
+# Not referenced by any IngressRoute in this workstream (Nextcloud is
+# internal-only by design). It exists so that:
+#   1. TLS material is ready the moment an edge route is approved (review
+#      gate, README §7); the Traefik route would reference this secret.
+#   2. In-cluster TLS on :443 can be enabled on the Deployment if the SPI
+#      conformance suite ever demands it (SR-1.2 internal-trust follow-up).
+#
+# Conventions per src/infra/cert-manager/ + traefik default certificate:
+# CN-less, byte-sorted SANs, ECDSA P-256, duration == evdr-internal role TTL.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nextcloud-tls
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: nextcloud
+    app.kubernetes.io/part-of: evdr
+spec:
+  secretName: nextcloud-tls
+  dnsNames:
+    - nextcloud.evdr.internal
+  duration: 720h
+  renewBefore: 240h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: vault-pki-issuer
+    kind: ClusterIssuer

@@ -1,0 +1,20 @@
+# Keycloak Service — in-cluster + edge endpoint (TR-6.1).
+# HTTP on 8080 (TLS terminated at the Traefik edge, see keycloak-ingressroute.yaml).
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/component: identity
+    app.kubernetes.io/part-of: evdr
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: keycloak
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
