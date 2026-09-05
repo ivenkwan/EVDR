@@ -138,9 +138,14 @@ test:go:
   stage: test
   image: $GO_IMAGE
   script:
-    # src/ (root module — Room SPI contract) and samples/hello-service
-    # (nested module) are built/tested separately.
+    # src/ (root module — Room SPI contract, adapters, conformance suite,
+    # services) and samples/hello-service (nested module) are built and
+    # tested separately.
+    # MERGE GATE (TR-2.4): the SPI conformance suite runs explicitly and
+    # fresh (-count=1) in this stage — a red suite against NextcloudAdapter
+    # or memadapter blocks the merge (stage `test` gates every MR).
     - go build ./src/...
+    - go test ./src/spi/conformance/... -race -count=1
     - go test ./src/... -race
     - cd samples/hello-service && go build ./... && go test ./... -race -coverprofile="$CI_PROJECT_DIR/coverage.out" && cd "$CI_PROJECT_DIR"
   artifacts:
