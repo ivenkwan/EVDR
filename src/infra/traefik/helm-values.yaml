@@ -43,7 +43,12 @@ ports:
 providers:
   kubernetesCRD:
     enabled: true
-    allowCrossNamespace: false
+    # Wave 3 lab finding: app IngressRoutes (e.g. keycloak) attach the
+    # platform-owned edge middlewares (edge-security-headers, edge-rate-limit)
+    # from the traefik namespace. Cross-namespace references require this
+    # flag; with it false Traefik drops the route entirely (404) — the
+    # middleware is not duplicated per namespace by design.
+    allowCrossNamespace: true
   kubernetesIngress:
     enabled: true
 

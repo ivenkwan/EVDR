@@ -6,8 +6,9 @@
 # services (no edge route by default; NetworkPolicy restricts peers),
 # non-root execution under the restricted Pod Security Standard.
 #
-# Data layer contract (workstream B): postgresql.storage.svc:5432,
-# redis.storage.svc:6379 — see README.md §2.
+# Data layer contract (workstream B, reconciled at Wave 3 lab apply):
+# postgres:5432 / redis:6379 in evdr-system — see README.md §2 and the
+# data-layer README (authoritative namespace placement).
 #
 # Secrets: referenced by name (nextcloud-secrets), provisioned from Vault —
 # see README.md §6. No credentials are hardcoded here.
@@ -62,7 +63,7 @@ spec:
           env:
             # --- PostgreSQL 16 backend (shared data layer, workstream B) ---
             - name: POSTGRES_HOST
-              value: postgresql.storage.svc
+              value: postgres
             - name: POSTGRES_DB
               value: nextcloud
             - name: POSTGRES_USER
@@ -76,18 +77,13 @@ spec:
                   name: nextcloud-secrets
                   key: POSTGRES_PASSWORD
             # --- Redis 7: distributed cache + FILE LOCKING (TR-2.13) ---
-            # The official image writes memcache.distributed and
-            # memcache.locking from these (Redis file locking, TR-2.12).
-            - name: REDIS_HOST
-              value: redis.storage.svc
-            - name: REDIS_HOST_PORT
-              value: "6379"
-            - name: REDIS_HOST_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: nextcloud-secrets
-                  key: REDIS_HOST_PASSWORD
-                  optional: true   # empty ACL-less Redis on Tier 0 lab
+            # NOTE (Wave 3 lab apply): the stock image only wires Redis via
+            # REDIS_HOST* env → entrypoint writes /usr/local/etc/php/conf.d/
+            # (root-owned), which fails under the restricted PSA as uid 33 and
+            # the pod crash-loops pre-install. Redis is therefore configured
+            # post-install by the operator/provisioner via occ into config.php
+            # (writable): config:system:set memcache.locking/.distributed,
+            # redis host/port/password — see nextcloud/README.md §4.
             # --- instance identity ---
             - name: NEXTCLOUD_TRUSTED_DOMAINS
               value: "nextcloud.evdr.internal nextcloud.evdr-system.svc nextcloud"
@@ -133,17 +129,27 @@ spec:
               containerPort: 80
               protocol: TCP
           livenessProbe:
-            httpGet:
-              path: /status.php
+            # TCP (not /status.php): before the operator's occ
+            # maintenance:install (fresh html PVC) the app answers 503, which
+            # an HTTP liveness probe turns into a crash loop mid-install.
+            tcpSocket:
               port: http
             initialDelaySeconds: 60
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 6
           readinessProbe:
-            httpGet:
-              path: /status.php
-              port: http
+            # EXEC probe (Wave 3 lab finding): Nextcloud answers 400 "Trusted
+            # domain error" to any Host it does not know (kubelet httpGet sends
+            # the pod IP), so HTTP probes can never pass. An exec probe from
+            # inside the pod targets 127.0.0.1, which IS trusted. Keep the
+            # readiness Host-set aligned: trusted_domains are provisioned by
+            # the operator post-install (occ config:system:set — see README §4).
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - '[ "$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/status.php)" = 200 ]'
             initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 5
@@ -163,9 +169,12 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
-              # Entrypoint chowns data dirs; apache binds :80. All caps are
-              # within the restricted-PSA allowed set.
-              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID", "NET_BIND_SERVICE"]
+              # Wave 3 lab finding: the Wave-1 draft added CHOWN/DAC_OVERRIDE/
+              # FOWNER/SETGID/SETUID, which the restricted PSA rejects
+              # (admission error — client dry-run never caught it). Verified
+              # boot + install with NET_BIND_SERVICE only: volumes are
+              # fsGroup-33-owned (kubelet), so no chown caps are needed.
+              add: ["NET_BIND_SERVICE"]
           volumeMounts:
             # Application + config (occ upgrades, app writes)
             - name: html

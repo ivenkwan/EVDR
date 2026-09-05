@@ -1,0 +1,43 @@
+# Persistent storage for Nextcloud (TR-2.13).
+# K3D-LAB variant of nextcloud-pvc.yaml: storageClass local-path only (k3d has
+# no block devices, so Rook/ceph-block cannot provision here — see
+# data-layer/rook/README.md and the Wave 3 lab finding). Production/VMs apply
+# nextcloud-pvc.yaml (ceph-block, reconciled name at Wave 3).
+#
+# Volumes:
+#   nextcloud-html  — application + config (/var/www/html): persists occ
+#                     app installs/upgrades and config.php.
+#   nextcloud-data  — user file data (/var/www/data): the document corpus.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nextcloud-html
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: nextcloud
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/part-of: evdr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nextcloud-data
+  namespace: evdr-system
+  labels:
+    app.kubernetes.io/name: nextcloud
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/part-of: evdr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi

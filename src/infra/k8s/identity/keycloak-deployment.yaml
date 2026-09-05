@@ -8,7 +8,8 @@
 # see README.md §6. No credentials are hardcoded here.
 #
 # Data layer: PostgreSQL 16 via the shared data layer (workstream B),
-# service contract postgresql.storage.svc:5432 — see README.md §2.
+# service contract postgres:5432 in evdr-system (reconciled at Wave 3 lab
+# apply — data-layer README §2; earlier drafts assumed postgresql.storage.svc).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -65,6 +66,13 @@ spec:
           image: quay.io/keycloak/keycloak:26.7.2
           imagePullPolicy: IfNotPresent
           args: ["start"]      # production mode; NOT start-dev
+          # Realm bootstrap (Wave 3 lab finding): the starter realm (evdr) is
+          # imported by booting ONCE with --import-realm (configmap mounted at
+          # /opt/keycloak/data/import). Do NOT leave the flag in args — KC
+          # re-imports on EVERY boot and wipes runtime-created users/clients
+          # (verified in the lab: alice.staff + client patches vanished on the
+          # next restart). One-shot: kubectl set args, apply, revert. Full
+          # realm management moves to the Tenant Provisioner (P2.5, TR-12.1).
           env:
             # --- bootstrap admin (master realm) ---
             - name: KC_BOOTSTRAP_ADMIN_USERNAME
@@ -81,7 +89,7 @@ spec:
             - name: KC_DB
               value: postgres
             - name: KC_DB_URL
-              value: jdbc:postgresql://postgresql.storage.svc:5432/keycloak
+              value: jdbc:postgresql://postgres:5432/keycloak
             - name: KC_DB_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -126,11 +134,14 @@ spec:
               containerPort: 8080
               protocol: TCP
           # KC 26 health endpoints (/health/live, /health/ready) — requires
-          # KC_HEALTH_ENABLED=true (set above).
+          # KC_HEALTH_ENABLED=true (set above). Wave 3 lab finding: KC 26
+          # serves health on the MANAGEMENT interface (:9000) by default, not
+          # the main :8080 — probes below target port 9000 (kubelet-probed
+          # empirically; a 404/503 on :8080 crash-looped the pod pre-fix).
           livenessProbe:
             httpGet:
               path: /health/live
-              port: http
+              port: 9000
             initialDelaySeconds: 60
             periodSeconds: 15
             timeoutSeconds: 5
@@ -138,7 +149,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /health/ready
-              port: http
+              port: 9000
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
@@ -152,7 +163,11 @@ spec:
               memory: 1536Mi
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
+            # Wave 3 lab finding: readOnlyRootFilesystem must be false — the
+            # KC 26 `start` (Quarkus fast-jar) build step writes
+            # /opt/keycloak/lib/quarkus/transformed-bytecode.jar (image dirs
+            # are uid-1000-owned, so this is writable without extra caps).
+            readOnlyRootFilesystem: false
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]

@@ -3,12 +3,21 @@
 # (evdr-system: default-deny-all + allow-evdr-system-baseline).
 #
 # Effective allow-set for nextcloud pods:
-#   Ingress: SAME-NAMESPACE pods only on 8080 — i.e. the Room SPI services
-#            and adjacent platform services in evdr-system. No edge namespace,
-#            no other namespaces.
-#   Egress:  PostgreSQL 16 (:5432) + Redis 7 (:6379) in the storage namespace
-#            (the baseline already provides kube-dns, Vault, K8s API and
-#            intra-namespace egress, so only the storage delta is declared).
+#   Ingress: SAME-NAMESPACE pods only on :80 (the pod listens on 80; the
+#            nextcloud Service maps 8080→80). No edge namespace, no other
+#            namespaces.
+#   Egress:  Traefik edge namespace :443 ONLY as the delta here. PostgreSQL
+#            (:5432) + Redis (:6379) + Keycloak live in evdr-system and are
+#            covered by the baseline's unrestricted intra-namespace egress
+#            (podSelector {} rule — see src/infra/network/network-policies.yaml).
+#            The edge egress exists for OIDC (user_oidc discovery +
+#            authorization redirects at https://keycloak.evdr.internal/realms/evdr,
+#            TR-6.2 — wave-3 lab-verified: provider registration fetches the
+#            well-known document through the edge).
+#
+# Wave 3 lab reconciliation: the Wave-1 draft declared egress to a `storage`
+# namespace and ingress on :8080 — both stale (data layer landed in
+# evdr-system per the data-layer README; pods listen on :80).
 #
 # KNOWN GAP (documented, see README §7): the namespace baseline
 # allow-evdr-system-baseline grants the traefik namespace ingress to EVERY
@@ -36,16 +45,14 @@ spec:
         # Room SPI / platform services in the same namespace only.
         - podSelector: {}
       ports:
-        - port: 8080
+        - port: 80
           protocol: TCP
   egress:
     - to:
-        # PostgreSQL 16 + Redis 7 — shared data layer (workstream B).
+        # OIDC discovery + redirects via the Traefik edge (TR-6.2).
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: storage
+              kubernetes.io/metadata.name: traefik
       ports:
-        - port: 5432
-          protocol: TCP
-        - port: 6379
+        - port: 443
           protocol: TCP
