@@ -89,10 +89,10 @@
 
 **Data & Storage Layer**
 
-- [ ] Deploy Ceph RGW via Rook operator — S3 API, SigV2+V4, versioning, lifecycle, bucket notifications (TR-2.5) — Wave 1: manifests ready + offline-validated (src/infra/k8s/data-layer/rook/); lab apply → Wave 2
-- [ ] Deploy PostgreSQL 16 (TR-2.11) — Wave 1: manifests ready + offline-validated (src/infra/k8s/data-layer/postgresql/); lab apply → Wave 2
-- [ ] Deploy Redis 7 (TR-2.12) — Wave 1: manifests ready + offline-validated (src/infra/k8s/data-layer/redis/); lab apply → Wave 2
-- [ ] Deploy hardened Nextcloud: TLS, Postgres backend, Redis file locking, backup strategy, network-separated from external-facing services (TR-2.13) — Wave 1: manifests ready + offline-validated (src/infra/k8s/nextcloud/); lab apply → Wave 2
+- [ ] Deploy Ceph RGW via Rook operator — S3 API, SigV2+V4, versioning, lifecycle, bucket notifications (TR-2.5) — Wave 1: manifests ready + offline-validated (src/infra/k8s/data-layer/rook/); lab apply → Wave 2 — **Wave 3 lab finding 2026-09-05: Rook cannot apply on k3d** (OSDs need raw block devices; local-path is filesystem-only). Target = VM/live lab (rook README deviceFilter ^vd[b-z]) — registered as follow-up in the Wave 3 section
+- [x] Deploy PostgreSQL 16 (TR-2.11) — applied 2026-09-05 (statefulset.lab.yaml, local-path lab variant; prod file keeps ceph-block); Vault creds at secret/evdr/services/postgresql; auth smoke-tested (psql as evdr_app)
+- [x] Deploy Redis 7 (TR-2.12) — applied 2026-09-05 (statefulset.lab.yaml); Vault creds at secret/evdr/services/redis; AUTH PONG verified; Nextcloud file locking wired via occ config (restricted-PSA constraint documented in manifest)
+- [x] Deploy hardened Nextcloud: TLS, Postgres backend, Redis file locking, backup strategy, network-separated from external-facing services (TR-2.13) — applied + verified 2026-09-05: 34.0.3 installed (occ), Postgres + Redis (locking via occ config), no edge route (internal only), restricted-PSA netpol (same-ns ingress :80, edge egress for OIDC); lab fixes persisted (caps, probes, liveness TCP)
 
 **Room SPI & Adapter**
 
@@ -102,8 +102,8 @@
 
 **Identity & Access**
 
-- [ ] Deploy Keycloak; federate SAML 2.0 / OIDC with enterprise AD/LDAP for internal users (FR-4.1, TR-6.1) — Wave 1: manifests ready + offline-validated (src/infra/k8s/identity/, starter realm incl. TOTP/WebAuthn 2FA policies); lab apply → Wave 2
-- [ ] Connect Nextcloud to Keycloak as SSO provider (TR-6.2) — Wave 1: OIDC placeholder wiring in manifests; apply + smoke test pending lab (Wave 2)
+- [x] Deploy Keycloak; federate SAML 2.0 / OIDC with enterprise AD/LDAP for internal users (FR-4.1, TR-6.1) — applied + verified 2026-09-05: KC 26.7.2 Ready, realm `evdr` imported (starter realm incl. 2FA-ready policies), edge route live w/ Vault-PKI TLS; AD/LDAP federation itself is a later-wave item (enterprise IdP connector)
+- [x] Connect Nextcloud to Keycloak as SSO provider (TR-6.2) — wired + token-verified 2026-09-05: user_oidc 8.11.0 installed (host-fetched artifact — pod appstore egress blocked by design), provider keycloak-evdr registered; OIDC access token issued through the edge for the confidential `nextcloud` client (iss https://keycloak.evdr.internal/realms/evdr). Interactive browser SSO smoke = follow-up (in-cluster DNS for *.evdr.internal + browser tooling)
 - [ ] MFA for internal users: TOTP + WebAuthn/FIDO2 (FR-4.2)
 - [ ] External guest access: expiring secure links with password or one-time OTP — no account creation (FR-4.3, TR-6.3)
 
@@ -474,3 +474,19 @@ Tasks surfaced by Wave 1 delivery: apply-wave work that requires the k3d lab bac
 - [ ] Apply data-layer manifests to k3d lab: Ceph Rook RGW, PostgreSQL 16, Redis 7 (TR-2.5/2.11/2.12) — manifests at src/infra/k8s/data-layer/
 - [ ] Apply identity + storage manifests to k3d lab: Keycloak realm bootstrap, hardened Nextcloud, SSO connect (TR-2.13/6.1/6.2, FR-4.1/4.2) — manifests at src/infra/k8s/identity/, src/infra/k8s/nextcloud/
 - [ ] Wire SPI conformance suite into GitLab CI merge gate (TR-2.4) — suite at src/spi/conformance/, currently passing locally only
+- [x] Harness relocation to /home/ivenkwan/repo/EVDR (2026-09-05): repaired worktree admin pointers (`EVDR-work/<id>/.git` ↔ `.git/worktrees/<id>/gitdir`) — `git worktree list` shows all four live at the new path (a-nextcloud-adapter@20a97c2, b-data-layer@10dd5a1, c-identity@a12f5fb, d-portal@f20978e). Earlier audit stands: no unmerged content (Wave 1 chain d6fd983/4004789/3227693/c22ab5f). Supersedes the "prune leftovers" task — EVDR-work kept as live worktrees, now gitignored
+
+---
+
+## Wave 3 — Lab restore + Phase 1 code streams (added 2026-09-05, user-directed "build next")
+
+Environment: k3d lab absent on this machine (no k3d/helm/gitlab-runner/LibreOffice; GitLab unreachable). Docker + network egress available. Wave 3 = restore the lab (unblocks Wave 2 apply + CI gate + Phase 1 E2E) in parallel with the two highest-value Phase 1 code streams.
+
+- [x] Restore k3d lab per `docs/runbooks/phase-0-foundation-rebuild.md` + `docs/runbooks/gitlab-runner.md` — k3d, helm, Vault, Traefik, GitLab runner (infra stream) — k3d v5.9 + helm 3.16.4 at ~/.local/bin; cluster evdr-lab (3× server, K3s v1.32.5) on subnet 172.30.0.0/24 (netpol contract — see docs/lab/linux-native.md); cert-manager v1.17.1 + bootstrap CA, Vault 0.29.1 HA raft (init 5-of-3, audit file/ first, root revoked, orphan evdr-admin), Traefik 33.2.1 + vault-pki issuer: TLS 1.2/1.3 verified at edge (1.1 rejected), HTTP→HTTPS 308 (2026-09-05). GitLab runner: follow-up (below)
+- [x] Carry-over Wave 2: apply data-layer manifests (TR-2.5/2.11/2.12) — applied 2026-09-05: PostgreSQL 16.15 + Redis 7.4 live in evdr-system w/ Vault-stored creds (secret/evdr/services/{postgresql,redis}), auth smoke-tested; **Rook/Ceph blocked on k3d** (no block devices; local-path is filesystem-only — Rook OSDs require raw block; rook/README + Wave-1 manifests anticipate VM/raw-device hosts) → lab variants statefulset.lab.yaml (local-path); Rook apply moves to the VM/live-lab follow-up
+- [x] Carry-over Wave 2: apply identity + storage manifests (TR-2.13/6.1/6.2) — applied + verified 2026-09-05: Keycloak 26.7.2 Ready (realm `evdr` imported, SSO client `nextcloud` + test users), Nextcloud 34.0.3 installed (occ maintenance:install), Redis locking + user_oidc provider registered; OIDC token grant proven through the edge (iss keycloak.evdr.internal/realms/evdr). Lab findings persisted to manifests: KC26 health on mgmt :9000, RO-fs off (Quarkus build writes), one-shot --import-realm (per-boot import wipes runtime users), Nextcloud restricted-PSA caps + exec readiness probe (trusted-domain 400), netpol reconciliations, traefik allowCrossNamespace
+- [x] Carry-over Wave 2: wire SPI conformance suite into GitLab CI merge gate (TR-2.4) — `.gitlab-ci.yml` test:go now runs the conformance suite explicitly, `-race -count=1` (fresh), gates every MR; **pipeline execution proof pending GitLab CE + runner** (follow-up below)
+- [x] Secure viewer core service (`src/services/viewer`) — merged 857869d: page-stream HTTP API over RoomSPI (single-page invariant test-pinned, no whole-doc endpoint), server-side watermark compositors (identity|ts|IP|session tokens), dependency-free PDF engine, LibreOffice conversion behind interface (e2e deferred); 49 tests, race-green post-merge (FR-3.1–3.3, TR-4.1/4.2)
+- [x] Room Service + portal slice (`src/services/room` + Next.js route layer) — merged 24b8eec: REST over RoomSPI w/ memadapter 12-test httptest suite (wrong-tenant probes, upload/versioning, grants, seal, export tar, branding leak check); admin console rooms/documents/upload BFF (Zod-validated) + portal branded room view; both apps build green post-merge (TR-10.1, FR-1.1, FR-2.1–2.3)
+- [x] NDA / e-sign approach ADR (TR-5.3) — ADR-0003 recorded 2026-09-05: recorded-acceptance baseline + e-sign provider seam (OpenSign self-hosted as upgrade path); Status Proposed — security review required before Accepted
+- [ ] GitLab CE + runner + pipeline proof (TR-1.3/2.4 follow-up): bring up lab GitLab (container per docs/lab/windows-docker-desktop.md §4 pattern, host-native), register evdr-docker runner, push branch → green pipeline incl. the explicit SPI conformance gate; then Wave 2 apply evidence is fully executable in CI

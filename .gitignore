@@ -66,3 +66,7 @@ Thumbs.db
 # Local AI-tooling state (session-specific, never committed)
 .mimosa/
 .zcode/plans/
+.video_agent/
+
+# Harness worktrees (nested git repos, never staged — see docs/harness/README.md)
+EVDR-work/

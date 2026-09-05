@@ -52,3 +52,4 @@ enforced (and where: CI, policy engine, review), what is explicitly out of scope
 |---|---|---|---|
 | [0001](0001-drm-strategy-view-first.md) | DRM strategy: view-first default, controlled export, bounded PPAD R&D | Accepted | 2026-08-16 |
 | [0002](0002-ci-platform-gitlab.md) | CI platform: GitLab per TR-1.3, self-hosted CE lab for Phase 0, GitHub code home | Proposed | 2026-08-16 |
+| [0003](0003-nda-consent-recorded-acceptance.md) | NDA/consent gate: recorded-acceptance baseline + e-signature provider seam (TR-5.3) | Proposed | 2026-09-05 |

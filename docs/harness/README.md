@@ -1,6 +1,6 @@
 # EVDR Agent Harness — Deployment Map
 
-> **Owner:** Iven Kwan | **Deployed:** 2026-08-29 | **Mode:** Agentic harness (parallel workstreams, wave-by-wave)
+> **Owner:** Iven Kwan | **Deployed:** 2026-08-29 | **Relocated:** 2026-09-05 → /home/ivenkwan/repo/EVDR | **Mode:** Agentic harness (parallel workstreams, wave-by-wave)
 >
 > The harness executes `Todo.md` phase-by-phase via isolated agent workstreams.
 > Each workstream = a git branch + a dedicated worktree. The orchestrator
@@ -11,7 +11,7 @@
 
 1. **Wave** = a batch of independent workstreams, dispatched in parallel.
 2. Each workstream gets: a branch (`harness/<id>-<slug>`), a worktree
-   (`~/EVDR-work/<id>`), a file partition (no overlap ⇒ no merge conflicts),
+   (`EVDR-work/<id>` under /home/ivenkwan/repo/EVDR), a file partition (no overlap ⇒ no merge conflicts),
    and a verification contract (build/tests/dry-run must pass before push).
 3. Orchestrator merges branches into `main` in dependency order, runs the
    full verification suite again post-merge, then ticks `Todo.md` activities
@@ -46,6 +46,15 @@ C → TR-2.13/TR-6.1/TR-6.2 · D → TR-3.1/TR-3.2/TR-3.3/TR-3.4.
 - [x] Todo.md Phase 1 activities ticked with evidence; Wave 2 tasks appended
 
 > **Wave 1 verified by orchestrator:** all gates re-run post-merge (fresh `-count=1`), zero out-of-partition files, remote SHAs confirmed. Wave 2 = lab apply + CI wiring (k3d lab required).
+
+## Wave 3 status (added 2026-09-05, user-directed)
+
+- [x] Repo relocated to `/home/ivenkwan/repo/EVDR`; all four Wave-1 worktrees repaired and live under `EVDR-work/` (gitignored, nested)
+- [x] k3d lab restored on the native-Linux host — see `docs/lab/linux-native.md` (subnet pin `172.30.0.0/24` per netpol contract; host port 80 → 8080 deviation; Vault HA + Traefik + Vault-PKI edge verified)
+- [x] Wave 2 lab apply executed: PostgreSQL 16.15 + Redis 7.4 live (Vault creds), Keycloak 26.7.2 realm `evdr`, hardened Nextcloud 34.0.3 + OIDC token proof through the edge; Rook/Ceph **blocked on k3d** (no raw block devices) → VM-lab follow-up registered
+- [x] Wave 3 code streams merged + gates re-run post-merge in main: viewer core service (857869d) + room service/portal slice (24b8eec) — `go test ./... -race -count=1` green, `pnpm build` green (both apps)
+- [x] SPI conformance suite wired as an explicit fresh-run merge gate in `.gitlab-ci.yml` (TR-2.4)
+- [ ] Follow-ups: GitLab CE + runner + pipeline proof (TR-1.3/2.4); Rook apply on the VM/live lab; interactive SSO browser smoke
 
 ## Out of scope (this deployment)
 
