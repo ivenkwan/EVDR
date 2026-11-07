@@ -26,7 +26,7 @@ func (s *Server) handlePublicBranding(w http.ResponseWriter, r *http.Request) {
 	if !found {
 		herr := mapSPIError(spi.ErrRoomNotFound)
 		s.emit(r, p, "branding.public", string(roomID), herr.Code, nil)
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	s.emit(r, p, "branding.public", string(roomID), "ok", nil)

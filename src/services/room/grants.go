@@ -45,12 +45,12 @@ func (s *Server) handleCreateGrant(w http.ResponseWriter, r *http.Request) {
 	}
 	var body WireGrantRequest
 	if err := readJSON(w, r, &body, 64<<10); err != nil {
-		writeError(w, r, err)
+		s.writeError(w, r, err)
 		return
 	}
 	spiGrant, herr := body.toSpiGrant()
 	if herr != nil {
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	tc := spi.TenantContext{TenantID: p.TenantID, Actor: p.Actor}
@@ -58,7 +58,7 @@ func (s *Server) handleCreateGrant(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		herr := mapSPIError(err)
 		s.emit(r, p, "grant.create", string(roomID), herr.Code, map[string]string{"subject": spiGrant.Subject})
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	s.catalog.RecordGrant(p.TenantID, roomID, created)
@@ -86,7 +86,7 @@ func (s *Server) handleRevokeGrant(w http.ResponseWriter, r *http.Request) {
 	if err := s.spi.RevokeAccess(r.Context(), tc, roomID, grantID); err != nil {
 		herr := mapSPIError(err)
 		s.emit(r, p, "grant.revoke", string(grantID), herr.Code, map[string]string{"room_id": string(roomID)})
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	s.catalog.RevokeGrant(p.TenantID, roomID, grantID)

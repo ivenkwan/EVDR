@@ -16,7 +16,7 @@ func (s *Server) requireRoom(w http.ResponseWriter, r *http.Request, p Principal
 	if !found {
 		herr := mapSPIError(spi.ErrRoomNotFound)
 		s.emit(r, p, action, string(roomID), herr.Code, nil)
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return spi.Room{}, false
 	}
 	return room, true
@@ -34,12 +34,12 @@ func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	var body WireCreateRoomRequest
 	if err := readJSON(w, r, &body, 64<<10); err != nil {
-		writeError(w, r, err)
+		s.writeError(w, r, err)
 		return
 	}
 	req, herr := body.toSpiCreateRequest()
 	if herr != nil {
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	tc := spi.TenantContext{TenantID: p.TenantID, Actor: p.Actor}
@@ -47,7 +47,7 @@ func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		herr := mapSPIError(err)
 		s.emit(r, p, "room.create", "", herr.Code, map[string]string{"slug": req.Slug})
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	s.catalog.RecordRoom(p.TenantID, room)
@@ -101,7 +101,7 @@ func (s *Server) handleSealRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	var body WireSealRequest
 	if err := readJSON(w, r, &body, 64<<10); err != nil {
-		writeError(w, r, err)
+		s.writeError(w, r, err)
 		return
 	}
 	tc := spi.TenantContext{TenantID: p.TenantID, Actor: p.Actor}
@@ -109,7 +109,7 @@ func (s *Server) handleSealRoom(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		herr := mapSPIError(err)
 		s.emit(r, p, "room.seal", string(roomID), herr.Code, nil)
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	room.State = spi.RoomSealed
@@ -134,19 +134,19 @@ func (s *Server) handleRetention(w http.ResponseWriter, r *http.Request) {
 	}
 	var body WireRetention
 	if err := readJSON(w, r, &body, 64<<10); err != nil {
-		writeError(w, r, err)
+		s.writeError(w, r, err)
 		return
 	}
 	policy, herr := body.toSpiRetention()
 	if herr != nil {
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	tc := spi.TenantContext{TenantID: p.TenantID, Actor: p.Actor}
 	if err := s.spi.ApplyRetention(r.Context(), tc, roomID, policy); err != nil {
 		herr := mapSPIError(err)
 		s.emit(r, p, "room.retention", string(roomID), herr.Code, nil)
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	room.Retention = policy
@@ -169,7 +169,7 @@ func (s *Server) handleExportRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	var body WireExportRequest
 	if err := readJSON(w, r, &body, 64<<10); err != nil {
-		writeError(w, r, err)
+		s.writeError(w, r, err)
 		return
 	}
 	tc := spi.TenantContext{TenantID: p.TenantID, Actor: p.Actor}
@@ -177,7 +177,7 @@ func (s *Server) handleExportRoom(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		herr := mapSPIError(err)
 		s.emit(r, p, "room.export", string(roomID), herr.Code, nil)
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	defer pkg.Content.Close()

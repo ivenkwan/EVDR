@@ -96,7 +96,7 @@ func newFixture(t *testing.T, h Harness) *fixture {
 			TenantID: spi.TenantID(string(tenant.TenantID) + "-other"),
 			Actor:    spi.Actor{Kind: spi.ActorInternalUser, ID: "other-operator"},
 		},
-		viewer: spi.Actor{Kind: spi.ActorInternalUser, ID: "viewer-1", DisplayName: "Viewer One"},
+		viewer:   spi.Actor{Kind: spi.ActorInternalUser, ID: "viewer-1", DisplayName: "Viewer One"},
 		stranger: spi.Actor{Kind: spi.ActorInternalUser, ID: "stranger-1", DisplayName: "Stranger"},
 	}
 }

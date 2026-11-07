@@ -367,10 +367,16 @@ func (c *countingReader) Read(p []byte) (int, error) {
 
 // ctxRenderStream wraps a renderer stream so the SPI contract "Next() must
 // unblock on context cancellation and surface it via Err()" holds no matter
-// what the renderer does.
+// what the renderer does. It also owns the WebDAV transport body backing the
+// render: the renderer consumes the body to produce pages but has no handle
+// to close it, so closing happens here (Close is idempotent on
+// http.Response.Body, and the handler defers stream.Close()).
 type ctxRenderStream struct {
 	ctx context.Context
 	spi.RenderStream
+	// transportBody is the WebDAV response body the renderer read from.
+	// The adapter — not the renderer — closes it on Close().
+	transportBody io.Closer
 }
 
 func (s *ctxRenderStream) Next() bool {
@@ -385,4 +391,12 @@ func (s *ctxRenderStream) Err() error {
 		return err
 	}
 	return s.RenderStream.Err()
+}
+
+func (s *ctxRenderStream) Close() error {
+	err := s.RenderStream.Close()
+	if s.transportBody != nil {
+		_ = s.transportBody.Close()
+	}
+	return err
 }

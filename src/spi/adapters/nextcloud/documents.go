@@ -28,16 +28,16 @@ type versionRecord struct {
 
 // docRecord is the per-document metadata record.
 type docRecord struct {
-	ID             spi.DocumentID    `json:"id"`
-	RoomID         spi.RoomID        `json:"room_id"`
-	Name           string            `json:"name"`
-	FolderPath     string            `json:"folder_path"`
-	ContentType    string            `json:"content_type"`
+	ID             spi.DocumentID     `json:"id"`
+	RoomID         spi.RoomID         `json:"room_id"`
+	Name           string             `json:"name"`
+	FolderPath     string             `json:"folder_path"`
+	ContentType    string             `json:"content_type"`
 	Classification spi.Classification `json:"classification"`
-	SizeBytes      int64             `json:"size_bytes"`
-	UploadedAt     time.Time         `json:"uploaded_at"`
-	UploadedBy     spi.Actor         `json:"uploaded_by"`
-	Versions       []versionRecord   `json:"versions"`
+	SizeBytes      int64              `json:"size_bytes"`
+	UploadedAt     time.Time          `json:"uploaded_at"`
+	UploadedBy     spi.Actor          `json:"uploaded_by"`
+	Versions       []versionRecord    `json:"versions"`
 }
 
 // CurrentVersion returns the newest version record. Versions are appended in
@@ -412,9 +412,10 @@ func (a *Adapter) GetRenderStream(ctx context.Context, tenant spi.TenantContext,
 		_ = resp.Body.Close()
 		return nil, err
 	}
-	// The renderer owns resp.Body from here (it must close it via stream
-	// Close); the wrapper guarantees the cancellation contract.
-	return &ctxRenderStream{ctx: ctx, RenderStream: stream}, nil
+	// The adapter owns the transport body: the renderer consumes it but has
+	// no handle to close it, so the wrapper closes it on stream Close(). The
+	// wrapper also guarantees the cancellation contract.
+	return &ctxRenderStream{ctx: ctx, RenderStream: stream, transportBody: resp.Body}, nil
 }
 
 // roomIDOf extracts the room id from a self-describing document id. For a

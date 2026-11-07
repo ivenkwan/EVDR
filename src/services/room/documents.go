@@ -23,7 +23,7 @@ func (s *Server) requireDocument(w http.ResponseWriter, r *http.Request, p Princ
 	if !found {
 		herr := mapSPIError(spi.ErrDocumentNotFound)
 		s.emit(r, p, action, string(docID), herr.Code, map[string]string{"room_id": string(roomID)})
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return spi.Document{}, false
 	}
 	return doc, true
@@ -90,7 +90,7 @@ func (s *Server) handleUploadDocument(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Content-Type") == "" || !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
 		herr := badRequest("upload must be multipart/form-data")
 		s.emit(r, p, "doc.upload", string(roomID), herr.Code, nil)
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, s.maxUploadBytes)
@@ -103,7 +103,7 @@ func (s *Server) handleUploadDocument(w http.ResponseWriter, r *http.Request) {
 			herr = httpErr(http.StatusRequestEntityTooLarge, codePayloadTooLarge, err)
 		}
 		s.emit(r, p, "doc.upload", string(roomID), herr.Code, nil)
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	defer r.MultipartForm.RemoveAll() //nolint:errcheck // best-effort temp cleanup
@@ -113,7 +113,7 @@ func (s *Server) handleUploadDocument(w http.ResponseWriter, r *http.Request) {
 	classification := strings.ToUpper(strings.TrimSpace(r.FormValue("classification")))
 	if !validClassifications[classification] {
 		herr := badRequest(fmt.Sprintf("classification must be one of PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED (got %q)", r.FormValue("classification")))
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 
@@ -121,13 +121,13 @@ func (s *Server) handleUploadDocument(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		herr := badRequest("a single 'file' part is required: " + err.Error())
 		s.emit(r, p, "doc.upload", string(roomID), herr.Code, nil)
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	defer file.Close()
 	if header == nil || header.Filename == "" {
 		herr := badRequest("file part must carry a filename")
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	if name == "" {
@@ -136,12 +136,12 @@ func (s *Server) handleUploadDocument(w http.ResponseWriter, r *http.Request) {
 	if err := validateDocumentName(name); err != nil {
 		herr := badRequest(err.Error())
 		s.emit(r, p, "doc.upload", string(roomID), herr.Code, map[string]string{"name": name})
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	if !validFolderPath(folderPath) {
 		herr := badRequest("folderPath must not contain '\\' and must be slash-separated")
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	contentType := header.Header.Get("Content-Type")
@@ -162,7 +162,7 @@ func (s *Server) handleUploadDocument(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		herr := mapSPIError(err)
 		s.emit(r, p, "doc.upload", string(roomID), herr.Code, map[string]string{"name": name})
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	s.catalog.RecordDocument(p.TenantID, doc)
@@ -193,7 +193,7 @@ func (s *Server) handleListVersions(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		herr := mapSPIError(err)
 		s.emit(r, p, "doc.versions", string(docID), herr.Code, nil)
-		writeError(w, r, herr)
+		s.writeError(w, r, herr)
 		return
 	}
 	out := make([]WireVersion, 0, len(versions))

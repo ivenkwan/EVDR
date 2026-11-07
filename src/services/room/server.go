@@ -167,12 +167,12 @@ func (s *Server) principal(w http.ResponseWriter, r *http.Request) (Principal, b
 	p, err := s.auth.Authenticate(r)
 	if err != nil {
 		if errors.Is(err, ErrUnauthenticated) {
-			writeError(w, r, httpErr(http.StatusUnauthorized, codeUnauthenticated, err))
+			s.writeError(w, r, httpErr(http.StatusUnauthorized, codeUnauthenticated, err))
 			return Principal{}, false
 		}
 		// Fail closed: any authenticator malfunction is an error, not a 401.
 		s.logger.Error("authenticator failure", "request_id", requestID(r), "error", err)
-		writeError(w, r, internalErr(err))
+		s.writeError(w, r, internalErr(err))
 		return Principal{}, false
 	}
 	return p, true
@@ -208,16 +208,49 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 // writeError renders the HTTP error envelope
 // {"code": "...", "message": "...", "requestId": "..."}.
-func writeError(w http.ResponseWriter, r *http.Request, herr *httpError) {
+//
+// Client-error messages (4xx) are service-generated (validation text, SPI
+// sentinels) and safe to surface. Server-side and upstream failures (5xx) are
+// reduced to a fixed client-facing message — the underlying error (adapter
+// URLs, upstream statuses, topology) is logged server-side only (AGENTS.md
+// §6: never expose connection strings or internal topology).
+func (s *Server) writeError(w http.ResponseWriter, r *http.Request, herr *httpError) {
 	message := herr.Code
 	if herr.Err != nil {
 		message = herr.Err.Error()
+	}
+	if herr.Status >= http.StatusInternalServerError {
+		s.logInternalError(r, herr)
+		message = internalMessage(herr.Code)
 	}
 	writeJSON(w, herr.Status, map[string]string{
 		"code":      herr.Code,
 		"message":   message,
 		"requestId": requestID(r),
 	})
+}
+
+// internalMessage maps 5xx error codes to fixed client-facing messages.
+func internalMessage(code string) string {
+	switch code {
+	case "upstream_timeout":
+		return "upstream request timed out"
+	default:
+		return "internal server error"
+	}
+}
+
+// logInternalError records a 5xx failure with full server-side context; the
+// detail is never echoed to the client.
+func (s *Server) logInternalError(r *http.Request, herr *httpError) {
+	s.logger.Error("room.internal_error",
+		"request_id", requestID(r),
+		"code", herr.Code,
+		"status", herr.Status,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"error", herr.Error(),
+	)
 }
 
 // readJSON decodes a JSON body into dst, bounding it at maxBytes. It returns

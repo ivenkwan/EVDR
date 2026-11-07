@@ -276,13 +276,13 @@ func TestCreateRoomRollback(t *testing.T) {
 
 func TestGrantAccess(t *testing.T) {
 	cases := []struct {
-		name    string
-		kind    spi.ActorKind
-		tier    spi.PermissionTier
-		subject string
-		notAfter time.Time
+		name                                                      string
+		kind                                                      spi.ActorKind
+		tier                                                      spi.PermissionTier
+		subject                                                   string
+		notAfter                                                  time.Time
 		wantShareType, wantPermissions, wantShareWith, wantExpire string
-		wantErr error
+		wantErr                                                   error
 	}{
 		{
 			name: "internal view-only", kind: spi.ActorInternalUser, tier: spi.TierViewOnly, subject: "alice",
@@ -302,7 +302,7 @@ func TestGrantAccess(t *testing.T) {
 		},
 		{
 			name: "guest with expiry", kind: spi.ActorGuest, tier: spi.TierViewOnly, subject: "guest@example.com",
-			notAfter: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+			notAfter:      time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
 			wantShareType: "3", wantPermissions: "1", wantExpire: "2026-09-01",
 		},
 		{
